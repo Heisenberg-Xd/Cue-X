@@ -1,0 +1,20 @@
+{
+    "clusters": [
+        {
+            "name": "Low-Value Frequent Buyers",
+            "count": 702
+        },
+        {
+            "name": "High-Value Loyal Customers",
+            "count": 751
+        },
+        {
+            "name": "Lost Customers",
+            "count": 658
+        },
+        {
+            "name": "Seasonal Buyers",
+            "count": 659
+        }
+    ]
+}
