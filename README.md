@@ -37,13 +37,14 @@
 
 | Feature | Description |
 |---|---|
-| 🧠 **Smart Segmentation** | K-Means ML model classifies customers into 4 behavioural segments |
+| 🧠 **Smart RFM Segmentation** | K-Means ML model paired with RFM (Recency, Frequency, Monetary) scoring to classify customers into highly targeted behavioural segments |
+| 💬 **AI Data Chat (RAG)** | Talk directly to your dataset via Gemini 2.5 Flash. Ask complex analytical questions and get instant, context-aware answers |
+| 📑 **Executive Summary AI** | One-click generation of boardroom-ready summaries highlighting critical business metrics and actionable insights |
 | 📤 **CSV Upload Pipeline** | Drag-and-drop file ingestion with instant server-side preprocessing |
 | 📊 **Live Analytics Dashboard** | Recharts-powered visualisations — distribution, spending, recency & seasonal trends |
-| 🎯 **Campaign Recommendations** | Auto-generates targeted marketing strategies per segment |
-| 📥 **Export Results** | Download the fully enriched & labelled dataset as a CSV |
-| ⚡ **High-Performance Frontend** | React 19 + Vite 8 + TailwindCSS 4 – ultra-fast, glassmorphic UI |
-| 🌐 **REST API Backend** | Flask REST endpoints powering all chart data in real-time |
+| 🎯 **Campaign Recommendations** | Auto-generates targeted marketing strategies based on RFM scores and segments |
+| ⚡ **High-Performance Frontend** | React 19 + Vite 8 + TailwindCSS 4 – featuring immersive Three.js shader backgrounds |
+| 🌐 **REST API Backend** | Flask REST endpoints powering ML inference and AI integration |
 
 ---
 
@@ -96,7 +97,8 @@ Download the sample dataset to test the application:
 |---|---|
 | Runtime | Python 3.10+ |
 | Web Framework | Flask |
-| ML Engine | Scikit-Learn (K-Means) |
+| ML Engine | Scikit-Learn (K-Means, RFM Scoring) |
+| LLM / Generative AI | Google GenAI SDK (`gemini-2.5-flash`) |
 | Data Processing | Pandas, NumPy |
 | Model Serialisation | Joblib |
 | Production Server | Gunicorn |
@@ -216,6 +218,9 @@ npm run dev
 | `GET` | `/api/spending-by-segment/<session_id>` | Avg spending per segment |
 | `GET` | `/api/recency-value-scatter/<session_id>` | Recency vs. value scatter data |
 | `GET` | `/api/seasonal-distribution/<session_id>` | Seasonal pattern breakdown |
+| `GET` | `/api/rfm-scores/<session_id>` | Raw RFM (Recency, Frequency, Monetary) data per segment |
+| `POST`| `/api/chat` | RAG/LLM backend for interacting with customer data |
+| `GET` | `/api/executive-summary/<session_id>` | AI-generated boardroom summary of the session data |
 
 ---
 
@@ -250,7 +255,7 @@ Customer_ID,Customer_Name,Email,Product,Quantity,Price_Per_Item,Total_Price,Purc
 
 ---
 
-## ✦ ML Pipeline
+## ✦ Intelligence Pipeline
 
 ```
   CSV Upload
@@ -258,20 +263,27 @@ Customer_ID,Customer_Name,Email,Product,Quantity,Price_Per_Item,Total_Price,Purc
       ▼
   Data Preprocessing
   ┌─────────────────────────────────────────┐
-  │  • Season → Ordinal Encoding            │
   │  • Purchase_Date → Recency (days)       │
-  │  • Avg_Order_Value = Total / Quantity   │
+  │  • Frequency = Purchases per user       │
+  │  • Monetary = Total value per user      │
   │  • StandardScaler normalisation         │
   └─────────────────────────────────────────┘
       │
       ▼
-  Feature Selection: [Recency, Avg_Order_Value]
+  Machine Learning Engine
+  ┌─────────────────────────────────────────┐
+  │  • K-Means Clustering (k=4)             │
+  │  • RFM Quintile Scoring (1-5)           │
+  │  • Segment Classification               │
+  └─────────────────────────────────────────┘
       │
       ▼
-  Pre-trained K-Means Model (k=4)
-      │
-      ▼
-  Cluster Labels + Segment Names + Campaign Tags
+  Google Gemini AI Integration
+  ┌─────────────────────────────────────────┐
+  │  • Executive Summary Generation         │
+  │  • RAG Chat: 'Ask Your Data'            │
+  │  • Strategy & Campaign Recommendations  │
+  └─────────────────────────────────────────┘
       │
       ▼
   Enriched CSV  ←→  REST API  ←→  React Dashboard
