@@ -9,12 +9,67 @@ and returns the newly created primary-key id where applicable.
 
 import logging
 from sqlalchemy import text
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+def serialize_datetime(value):
+    """Safely convert datetime to ISO format string."""
+    return value.isoformat() if value else None
+
+# ── workspaces ────────────────────────────────────────────────────────────────
+def insert_workspace(conn, name: str) -> int | None:
+    """
+    Insert a new workspace.
+    Returns the new workspace_id (int) or None on failure.
+    """
+    try:
+        result = conn.execute(
+            text("INSERT INTO workspaces (name) VALUES (:name) RETURNING id"),
+            {"name": name},
+        )
+        workspace_id = result.fetchone()[0]
+        logger.info(f"[DB] Workspace created: id={workspace_id}, name={name}")
+        return workspace_id
+    except Exception as exc:
+        logger.error(f"[DB] insert_workspace failed: {exc}")
+        return None
+
+def get_workspaces(conn):
+    """List all workspaces."""
+    try:
+        result = conn.execute(text("SELECT id, name, created_at FROM workspaces ORDER BY created_at DESC"))
+        rows = []
+        for row in result.fetchall():
+            d = dict(row._mapping)
+            if 'created_at' in d:
+                d['created_at'] = serialize_datetime(d['created_at'])
+            rows.append(d)
+        return rows
+    except Exception as exc:
+        logger.error(f"[DB] get_workspaces failed: {exc}")
+        return []
 
 # ── datasets ──────────────────────────────────────────────────────────────────
-def insert_dataset(conn, filename: str, row_count: int) -> int | None:
+def get_datasets_by_workspace(conn, workspace_id: int):
+    """List all datasets in a workspace."""
+    try:
+        result = conn.execute(
+            text("SELECT id, filename, uploaded_at, row_count FROM datasets WHERE workspace_id = :ws_id ORDER BY uploaded_at DESC"),
+            {"ws_id": workspace_id}
+        )
+        rows = []
+        for row in result.fetchall():
+            d = dict(row._mapping)
+            if 'uploaded_at' in d:
+                d['uploaded_at'] = serialize_datetime(d['uploaded_at'])
+            rows.append(d)
+        return rows
+    except Exception as exc:
+        logger.error(f"[DB] get_datasets_by_workspace failed: {exc}")
+        return []
+
+def insert_dataset(conn, filename: str, row_count: int, workspace_id: int = None) -> int | None:
     """
     Insert a record for the uploaded CSV file.
     Returns the new dataset_id (int) or None on failure.
@@ -22,13 +77,13 @@ def insert_dataset(conn, filename: str, row_count: int) -> int | None:
     try:
         result = conn.execute(
             text(
-                "INSERT INTO datasets (filename, row_count) "
-                "VALUES (:filename, :row_count) RETURNING id"
+                "INSERT INTO datasets (filename, row_count, workspace_id) "
+                "VALUES (:filename, :row_count, :workspace_id) RETURNING id"
             ),
-            {"filename": filename, "row_count": row_count},
+            {"filename": filename, "row_count": row_count, "workspace_id": workspace_id},
         )
         dataset_id = result.fetchone()[0]
-        logger.info(f"[DB] Dataset inserted: id={dataset_id}, file={filename}")
+        logger.info(f"[DB] Dataset inserted: id={dataset_id}, file={filename}, ws={workspace_id}")
         return dataset_id
     except Exception as exc:
         logger.error(f"[DB] insert_dataset failed: {exc}")
@@ -52,6 +107,7 @@ def insert_customers(conn, rfm_df, dataset_id: int) -> bool:
             "monetary":      float(row["Monetary"]),
             "cluster_id":    int(row["Cluster"]),
             "segment_label": str(row["Segment_Name"]),
+            "season":        str(row["Season"]) if "Season" in row else None,
         }
         for _, row in rfm_df.iterrows()
     ]
@@ -65,9 +121,9 @@ def insert_customers(conn, rfm_df, dataset_id: int) -> bool:
             text(
                 "INSERT INTO customers "
                 "(dataset_id, customer_id, recency, frequency, monetary, "
-                " cluster_id, segment_label) "
+                " cluster_id, segment_label, season) "
                 "VALUES (:dataset_id, :customer_id, :recency, :frequency, "
-                "        :monetary, :cluster_id, :segment_label)"
+                "        :monetary, :cluster_id, :segment_label, :season)"
             ),
             rows,
         )

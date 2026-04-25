@@ -63,11 +63,18 @@ def get_connection():
 
 # ── Table creation ─────────────────────────────────────────────────────────────
 CREATE_TABLES_SQL = """
-CREATE TABLE IF NOT EXISTS datasets (
+CREATE TABLE IF NOT EXISTS workspaces (
     id          SERIAL PRIMARY KEY,
-    filename    TEXT        NOT NULL,
-    uploaded_at TIMESTAMP   DEFAULT now(),
-    row_count   INTEGER
+    name        TEXT        NOT NULL,
+    created_at  TIMESTAMP   DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS datasets (
+    id            SERIAL PRIMARY KEY,
+    workspace_id  INTEGER     REFERENCES workspaces(id) ON DELETE CASCADE,
+    filename      TEXT        NOT NULL,
+    uploaded_at   TIMESTAMP   DEFAULT now(),
+    row_count     INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -78,7 +85,8 @@ CREATE TABLE IF NOT EXISTS customers (
     frequency     FLOAT,
     monetary      FLOAT,
     cluster_id    INTEGER,
-    segment_label TEXT
+    segment_label TEXT,
+    season        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS models_used (
@@ -100,8 +108,31 @@ def init_db():
 
     try:
         with engine.connect() as conn:
+            # 1. Create tables
             conn.execute(text(CREATE_TABLES_SQL))
+            
+            # 2. Migration: Add workspace_id to datasets if it doesn't exist
+            conn.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='datasets' AND column_name='workspace_id'
+                    ) THEN
+                        ALTER TABLE datasets ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='customers' AND column_name='season'
+                    ) THEN
+                        ALTER TABLE customers ADD COLUMN season TEXT;
+                    END IF;
+                END
+                $$;
+            """))
+            
             conn.commit()
-        logger.info("[DB] Tables verified / created.")
+        logger.info("[DB] Tables verified / created / migrated.")
     except Exception as exc:
-        logger.error(f"[DB] Table creation failed: {exc}")
+        logger.error(f"[DB] Table initialization failed: {exc}")
