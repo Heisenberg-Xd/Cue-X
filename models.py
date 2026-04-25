@@ -17,28 +17,55 @@ def serialize_datetime(value):
     """Safely convert datetime to ISO format string."""
     return value.isoformat() if value else None
 
+# ── users ──────────────────────────────────────────────────────────────────────
+def create_user(conn, email: str, password_hash: str) -> int | None:
+    try:
+        result = conn.execute(
+            text("INSERT INTO users (email, password_hash) VALUES (:email, :password_hash) RETURNING id"),
+            {"email": email, "password_hash": password_hash}
+        )
+        return result.fetchone()[0]
+    except Exception as exc:
+        logger.error(f"[DB] create_user failed: {exc}")
+        return None
+
+def get_user_by_email(conn, email: str) -> dict | None:
+    try:
+        result = conn.execute(
+            text("SELECT id, email, password_hash FROM users WHERE email = :email"),
+            {"email": email}
+        )
+        row = result.fetchone()
+        return dict(row._mapping) if row else None
+    except Exception as exc:
+        logger.error(f"[DB] get_user_by_email failed: {exc}")
+        return None
+
 # ── workspaces ────────────────────────────────────────────────────────────────
-def insert_workspace(conn, name: str) -> int | None:
+def insert_workspace(conn, name: str, user_id: int) -> int | None:
     """
     Insert a new workspace.
     Returns the new workspace_id (int) or None on failure.
     """
     try:
         result = conn.execute(
-            text("INSERT INTO workspaces (name) VALUES (:name) RETURNING id"),
-            {"name": name},
+            text("INSERT INTO workspaces (name, user_id) VALUES (:name, :user_id) RETURNING id"),
+            {"name": name, "user_id": user_id},
         )
         workspace_id = result.fetchone()[0]
-        logger.info(f"[DB] Workspace created: id={workspace_id}, name={name}")
+        logger.info(f"[DB] Workspace created: id={workspace_id}, name={name}, user_id={user_id}")
         return workspace_id
     except Exception as exc:
         logger.error(f"[DB] insert_workspace failed: {exc}")
         return None
 
-def get_workspaces(conn):
-    """List all workspaces."""
+def get_workspaces(conn, user_id: int):
+    """List all workspaces for a specific user."""
     try:
-        result = conn.execute(text("SELECT id, name, created_at FROM workspaces ORDER BY created_at DESC"))
+        result = conn.execute(
+            text("SELECT id, name, created_at FROM workspaces WHERE user_id = :user_id ORDER BY created_at DESC"),
+            {"user_id": user_id}
+        )
         rows = []
         for row in result.fetchall():
             d = dict(row._mapping)

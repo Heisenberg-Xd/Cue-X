@@ -63,9 +63,17 @@ def get_connection():
 
 # ── Table creation ─────────────────────────────────────────────────────────────
 CREATE_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id            SERIAL PRIMARY KEY,
+    email         TEXT        UNIQUE NOT NULL,
+    password_hash TEXT        NOT NULL,
+    created_at    TIMESTAMP   DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS workspaces (
     id          SERIAL PRIMARY KEY,
     name        TEXT        NOT NULL,
+    user_id     INTEGER     REFERENCES users(id) ON DELETE CASCADE,
     created_at  TIMESTAMP   DEFAULT now()
 );
 
@@ -111,7 +119,7 @@ def init_db():
             # 1. Create tables
             conn.execute(text(CREATE_TABLES_SQL))
             
-            # 2. Migration: Add workspace_id to datasets if it doesn't exist
+            # 2. Migrations
             conn.execute(text("""
                 DO $$
                 BEGIN
@@ -127,6 +135,13 @@ def init_db():
                         WHERE table_name='customers' AND column_name='season'
                     ) THEN
                         ALTER TABLE customers ADD COLUMN season TEXT;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='workspaces' AND column_name='user_id'
+                    ) THEN
+                        ALTER TABLE workspaces ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
                     END IF;
                 END
                 $$;
