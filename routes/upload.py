@@ -46,11 +46,15 @@ def upload_file():
         today = datetime.now()
 
         # ── Step 2: RFM feature engineering per customer ──────────────────────
-        rfm = raw.groupby('Customer_ID').agg(
-            Recency   = ('Purchase_Date', lambda x: (today - x.max()).days),
-            Frequency = ('Purchase_Date', 'count'),
-            Monetary  = ('Total_Price',   'sum')
-        ).reset_index()
+        agg_dict = {
+            'Recency': ('Purchase_Date', lambda x: (today - x.max()).days),
+            'Frequency': ('Purchase_Date', 'count'),
+            'Monetary': ('Total_Price', 'sum')
+        }
+        if 'Season' in raw.columns:
+            agg_dict['Season'] = ('Season', lambda x: x.mode()[0] if not x.mode().empty else 'Unknown')
+
+        rfm = raw.groupby('Customer_ID').agg(**agg_dict).reset_index()
 
         # ── Step 3: Scale & predict ───────────────────────────────────────────
         if rfm_scaler is None or rfm_model is None:
@@ -100,6 +104,8 @@ def upload_file():
 
         # ── Step 8: Persist to PostgreSQL (non-blocking) ──────────────────────
         dataset_id = None
+        workspace_id = request.form.get('workspace_id')
+        
         try:
             # Silhouette score — measures cluster quality (−1 to 1, higher is better)
             from sklearn.metrics import silhouette_score as sk_silhouette
@@ -113,6 +119,7 @@ def upload_file():
                         conn,
                         filename=file.filename,
                         row_count=len(raw),
+                        workspace_id=int(workspace_id) if workspace_id else None
                     )
                     if dataset_id:
                         insert_customers(conn, rfm, dataset_id)
@@ -135,6 +142,7 @@ def upload_file():
             'total_customers':   int(rfm['Customer_ID'].nunique()),
             'segments_found':    rfm['Segment_Name'].unique().tolist(),
             'dataset_id':        dataset_id,
+            'workspace_id':      workspace_id
         }), 200
 
     except Exception as e:
