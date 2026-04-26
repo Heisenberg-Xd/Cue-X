@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { setToken, fetchWithAuth } from '../utils/api';
-import { useNavigate } from 'react-router-dom';
+import { setToken, fetchWithAuth, isAuthenticated } from '../utils/api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 
 export function AuthPage() {
-    const [isLogin, setIsLogin] = useState(true);
+    const [searchParams] = useSearchParams();
+    const [isLogin, setIsLogin] = useState(searchParams.get('mode') !== 'signup');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
+
+    // Auto-update if query param changes
+    useEffect(() => {
+        setIsLogin(searchParams.get('mode') !== 'signup');
+    }, [searchParams]);
+
+    // Redirect to workspace if already authenticated
+    useEffect(() => {
+        if (isAuthenticated()) {
+            navigate('/workspace', { replace: true });
+        }
+    }, [navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,7 +48,7 @@ export function AuthPage() {
 
             if (isLogin) {
                 setToken(data.token);
-                navigate('/workspaces');
+                navigate('/workspace');
             } else {
                 // Auto login after signup
                 const loginRes = await fetchWithAuth('/api/auth/login', {
@@ -45,7 +58,7 @@ export function AuthPage() {
                 const loginData = await loginRes.json();
                 if (loginRes.ok) {
                     setToken(loginData.token);
-                    navigate('/workspaces');
+                    navigate('/workspace');
                 } else {
                     setIsLogin(true);
                     setError('Signup successful! Please log in.');

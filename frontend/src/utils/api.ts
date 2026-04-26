@@ -12,6 +12,10 @@ export function removeToken() {
     localStorage.removeItem('auth_token');
 }
 
+export function isAuthenticated(): boolean {
+    return !!getToken();
+}
+
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     const token = getToken();
     const headers = new Headers(options.headers || {});
