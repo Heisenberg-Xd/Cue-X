@@ -140,3 +140,71 @@ def delete_dataset(user_id, dataset_id):
             conn.rollback()
             print(f"Error deleting dataset {dataset_id}: {e}")
             return jsonify({'error': str(e)}), 500
+
+
+# ── Delete Workspace ──────────────────────────────────────────────────────────
+@workspace_bp.route('/<int:workspace_id>', methods=['DELETE'])
+@login_required
+def delete_workspace(user_id, workspace_id):
+    """
+    Hard-delete a workspace and ALL its associated data in safe order:
+    models_used → customers → datasets → data_sources → workspaces.
+    Also clears caches for all datasets inside the workspace.
+    """
+    print(f"DELETE /api/workspaces/{workspace_id} by user {user_id}")
+    with get_connection() as conn:
+        if conn is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+        try:
+            # 1. Validate workspace exists AND user owns it
+            ws = conn.execute(
+                text("SELECT id FROM workspaces WHERE id = :workspace_id AND user_id = :user_id"),
+                {"workspace_id": workspace_id, "user_id": user_id}
+            ).fetchone()
+
+            if not ws:
+                return jsonify({'error': 'Workspace not found or unauthorized'}), 404
+
+            # 2. Find all datasets to clear caches and delete their child records
+            datasets = conn.execute(
+                text("SELECT id FROM datasets WHERE workspace_id = :workspace_id"),
+                {"workspace_id": workspace_id}
+            ).fetchall()
+
+            for row in datasets:
+                ds_id = row[0]
+                # Clear cache for each dataset
+                clear_cache(f"dashboard:{ds_id}:")
+                clear_cache(f"ai:{ds_id}:")
+                
+                # Delete related models and customers for the dataset
+                conn.execute(text("DELETE FROM models_used WHERE dataset_id = :id"), {"id": ds_id})
+                conn.execute(text("DELETE FROM customers WHERE dataset_id = :id"), {"id": ds_id})
+
+            # 3. Delete datasets
+            conn.execute(
+                text("DELETE FROM datasets WHERE workspace_id = :workspace_id"),
+                {"workspace_id": workspace_id}
+            )
+
+            # 4. Delete integrations / data sources
+            conn.execute(
+                text("DELETE FROM data_sources WHERE workspace_id = :workspace_id"),
+                {"workspace_id": workspace_id}
+            )
+
+            # 5. Delete the workspace itself
+            conn.execute(
+                text("DELETE FROM workspaces WHERE id = :workspace_id"),
+                {"workspace_id": workspace_id}
+            )
+
+            conn.commit()
+            print(f"[DELETE] Workspace {workspace_id} and all associated data completely removed.")
+            return jsonify({'success': True, 'message': 'Workspace deleted successfully'})
+
+        except Exception as e:
+            conn.rollback()
+            print(f"Error deleting workspace {workspace_id}: {e}")
+            return jsonify({'error': str(e)}), 500
+
