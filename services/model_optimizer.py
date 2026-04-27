@@ -5,7 +5,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.cluster import AgglomerativeClustering, DBSCAN, KMeans
-from sklearn.metrics import adjusted_rand_score, silhouette_score
+from sklearn.metrics import (
+    adjusted_rand_score,
+    calinski_harabasz_score,
+    davies_bouldin_score,
+    silhouette_score,
+)
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
 
@@ -29,6 +34,32 @@ def _safe_silhouette(X: np.ndarray, labels: np.ndarray) -> float | None:
         return None
 
 
+def _safe_calinski_harabasz(X: np.ndarray, labels: np.ndarray) -> float | None:
+    valid = labels != -1
+    if valid.sum() < 3:
+        return None
+    unique = np.unique(labels[valid])
+    if len(unique) < 2:
+        return None
+    try:
+        return float(calinski_harabasz_score(X[valid], labels[valid]))
+    except Exception:
+        return None
+
+
+def _safe_davies_bouldin(X: np.ndarray, labels: np.ndarray) -> float | None:
+    valid = labels != -1
+    if valid.sum() < 3:
+        return None
+    unique = np.unique(labels[valid])
+    if len(unique) < 2:
+        return None
+    try:
+        return float(davies_bouldin_score(X[valid], labels[valid]))
+    except Exception:
+        return None
+
+
 def _cluster_usability(labels: np.ndarray, min_cluster_size_ratio: float) -> tuple[float, float, int]:
     n = len(labels)
     if n == 0:
@@ -45,11 +76,24 @@ def _cluster_usability(labels: np.ndarray, min_cluster_size_ratio: float) -> tup
     return coverage, tiny_ratio, int(len(unique))
 
 
-def _normalized_score(silhouette: float | None, stability: float | None, coverage: float, tiny_ratio: float) -> float:
+def _normalized_score(
+    silhouette: float | None,
+    calinski_harabasz: float | None,
+    davies_bouldin: float | None,
+    stability: float | None,
+    coverage: float,
+    tiny_ratio: float,
+    ch_ref: float,
+    db_ref: float,
+) -> float:
     sil_norm = ((silhouette + 1.0) / 2.0) if silhouette is not None else 0.0
+    ch_norm = min(1.0, (calinski_harabasz or 0.0) / max(ch_ref, 1.0))
+    # Lower DB is better; convert to normalized "higher is better".
+    db_norm = 1.0 - min(1.0, (davies_bouldin or db_ref) / max(db_ref, 1e-6))
+    quality = max(0.0, min(1.0, 0.45 * sil_norm + 0.30 * ch_norm + 0.25 * db_norm))
     stab = stability if stability is not None else 0.0
     usability = max(0.0, min(1.0, coverage - tiny_ratio))
-    return float(0.55 * sil_norm + 0.25 * stab + 0.20 * usability)
+    return float(0.60 * quality + 0.25 * stab + 0.15 * usability)
 
 
 def _fetch_rfm_matrix(dataset_id: int) -> tuple[np.ndarray, np.ndarray] | None:
@@ -120,6 +164,46 @@ def _fit_predict_candidate(model_name: str, params: dict[str, Any], X: np.ndarra
     raise ValueError(f"Unsupported winner model: {model_name}")
 
 
+def _bootstrap_stability(
+    X: np.ndarray,
+    fit_predict_fn,
+    repeats: int,
+    sample_ratio: float,
+) -> float | None:
+    n = len(X)
+    if n < 20 or repeats < 2:
+        return None
+    sample_size = max(10, int(n * sample_ratio))
+    if sample_size >= n:
+        sample_size = n - 1
+
+    scores: list[float] = []
+    rng = np.random.default_rng(42)
+    for _ in range(repeats):
+        i1 = np.sort(rng.choice(n, size=sample_size, replace=False))
+        i2 = np.sort(rng.choice(n, size=sample_size, replace=False))
+        overlap = np.intersect1d(i1, i2, assume_unique=True)
+        if len(overlap) < 8:
+            continue
+
+        pos1 = {idx: p for p, idx in enumerate(i1)}
+        pos2 = {idx: p for p, idx in enumerate(i2)}
+        l1 = fit_predict_fn(X[i1])
+        l2 = fit_predict_fn(X[i2])
+        a = np.array([l1[pos1[idx]] for idx in overlap], dtype=int)
+        b = np.array([l2[pos2[idx]] for idx in overlap], dtype=int)
+        try:
+            score = float(adjusted_rand_score(a, b))
+            if np.isfinite(score):
+                scores.append(score)
+        except Exception:
+            continue
+
+    if not scores:
+        return None
+    return float(np.mean(scores))
+
+
 def _build_segment_name_map(labels: np.ndarray, X_raw: np.ndarray) -> dict[int, str]:
     df = pd.DataFrame(
         {
@@ -187,23 +271,36 @@ def run_optimizer(dataset_id: int, config: dict[str, Any]) -> dict[str, Any]:
     min_size_ratio = float(config.get("min_cluster_size_ratio", 0.02))
     improvement_threshold = float(config.get("improvement_threshold", 0.05))
     max_k = min(int(config.get("max_k", 8)), max(2, len(X) - 1))
+    bootstrap_repeats = int(config.get("bootstrap_repeats", 3))
+    bootstrap_sample_ratio = float(config.get("bootstrap_sample_ratio", 0.75))
 
     baseline_sil = _safe_silhouette(X, baseline_labels)
+    baseline_ch = _safe_calinski_harabasz(X, baseline_labels)
+    baseline_db = _safe_davies_bouldin(X, baseline_labels)
     base_cov, base_tiny, base_clusters = _cluster_usability(baseline_labels, min_size_ratio)
-    baseline_score = _normalized_score(baseline_sil, 0.8, base_cov, base_tiny)
+    # Initial refs; refined after candidates are collected.
+    ch_ref = baseline_ch if baseline_ch is not None else 1.0
+    db_ref = baseline_db if baseline_db is not None else 2.0
+    baseline_score = _normalized_score(
+        baseline_sil, baseline_ch, baseline_db, 0.8, base_cov, base_tiny, ch_ref, db_ref
+    )
 
     candidates: list[dict[str, Any]] = []
 
     def record_candidate(name: str, params: dict[str, Any], labels: np.ndarray, stability: float | None) -> None:
         sil = _safe_silhouette(X, labels)
+        ch = _safe_calinski_harabasz(X, labels)
+        dbi = _safe_davies_bouldin(X, labels)
         cov, tiny, n_clusters = _cluster_usability(labels, min_size_ratio)
-        score = _normalized_score(sil, stability, cov, tiny)
+        score = _normalized_score(sil, ch, dbi, stability, cov, tiny, ch_ref, db_ref)
         guardrails_ok = (cov >= min_cov) and (tiny <= max_tiny) and (n_clusters >= 2)
         candidates.append(
             {
                 "model": name,
                 "params": params,
                 "silhouette": sil,
+                "calinski_harabasz": ch,
+                "davies_bouldin": dbi,
                 "stability": stability,
                 "coverage": cov,
                 "tiny_cluster_ratio": tiny,
@@ -218,24 +315,27 @@ def run_optimizer(dataset_id: int, config: dict[str, Any]) -> dict[str, Any]:
         try:
             km = KMeans(n_clusters=k, random_state=42, n_init=10)
             labels = km.fit_predict(X)
-            labels2 = KMeans(n_clusters=k, random_state=7, n_init=10).fit_predict(X)
-            record_candidate("kmeans", {"k": k}, labels, float(adjusted_rand_score(labels, labels2)))
+            fit_fn = lambda x: KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(x)
+            stability = _bootstrap_stability(X, fit_fn, bootstrap_repeats, bootstrap_sample_ratio)
+            record_candidate("kmeans", {"k": k}, labels, stability)
         except Exception as exc:
             logger.warning("[OPT] KMeans k=%s failed: %s", k, exc)
 
         try:
             gmm = GaussianMixture(n_components=k, random_state=42)
             labels = gmm.fit_predict(X)
-            labels2 = GaussianMixture(n_components=k, random_state=7).fit_predict(X)
-            record_candidate("gmm", {"k": k}, labels, float(adjusted_rand_score(labels, labels2)))
+            fit_fn = lambda x: GaussianMixture(n_components=k, random_state=42).fit_predict(x)
+            stability = _bootstrap_stability(X, fit_fn, bootstrap_repeats, bootstrap_sample_ratio)
+            record_candidate("gmm", {"k": k}, labels, stability)
         except Exception as exc:
             logger.warning("[OPT] GMM k=%s failed: %s", k, exc)
 
         try:
             agg = AgglomerativeClustering(n_clusters=k)
             labels = agg.fit_predict(X)
-            # deterministic algorithm, treat as fully stable.
-            record_candidate("agglomerative", {"k": k}, labels, 1.0)
+            fit_fn = lambda x: AgglomerativeClustering(n_clusters=k).fit_predict(x)
+            stability = _bootstrap_stability(X, fit_fn, bootstrap_repeats, bootstrap_sample_ratio)
+            record_candidate("agglomerative", {"k": k}, labels, stability)
         except Exception as exc:
             logger.warning("[OPT] Agglomerative k=%s failed: %s", k, exc)
 
@@ -245,13 +345,39 @@ def run_optimizer(dataset_id: int, config: dict[str, Any]) -> dict[str, Any]:
             try:
                 db = DBSCAN(eps=eps, min_samples=min_samples)
                 labels = db.fit_predict(X)
-                # deterministic with fixed params.
-                record_candidate("dbscan", {"eps": eps, "min_samples": min_samples}, labels, 1.0)
+                fit_fn = lambda x: DBSCAN(eps=eps, min_samples=min_samples).fit_predict(x)
+                stability = _bootstrap_stability(X, fit_fn, bootstrap_repeats, bootstrap_sample_ratio)
+                record_candidate("dbscan", {"eps": eps, "min_samples": min_samples}, labels, stability)
             except Exception as exc:
                 logger.warning("[OPT] DBSCAN eps=%s min_samples=%s failed: %s", eps, min_samples, exc)
 
     if not candidates:
         return {"status": "failed", "error": "No model candidates could be evaluated."}
+
+    # Re-normalize with observed references for fair cross-model comparison.
+    ch_values = [c["calinski_harabasz"] for c in candidates if c.get("calinski_harabasz") is not None]
+    db_values = [c["davies_bouldin"] for c in candidates if c.get("davies_bouldin") is not None]
+    if baseline_ch is not None:
+        ch_values.append(baseline_ch)
+    if baseline_db is not None:
+        db_values.append(baseline_db)
+    ch_ref = max(ch_values) if ch_values else 1.0
+    db_ref = np.percentile(db_values, 75) if db_values else 2.0
+
+    baseline_score = _normalized_score(
+        baseline_sil, baseline_ch, baseline_db, 0.8, base_cov, base_tiny, ch_ref, db_ref
+    )
+    for c in candidates:
+        c["composite_score"] = _normalized_score(
+            c.get("silhouette"),
+            c.get("calinski_harabasz"),
+            c.get("davies_bouldin"),
+            c.get("stability"),
+            c.get("coverage"),
+            c.get("tiny_cluster_ratio"),
+            ch_ref,
+            db_ref,
+        )
 
     best_candidate = max(candidates, key=lambda c: c["composite_score"])
     best_viable = [c for c in candidates if c["guardrails_ok"]]
@@ -272,6 +398,8 @@ def run_optimizer(dataset_id: int, config: dict[str, Any]) -> dict[str, Any]:
         "baseline": {
             "model": "kmeans_stage1",
             "silhouette": baseline_sil,
+            "calinski_harabasz": baseline_ch,
+            "davies_bouldin": baseline_db,
             "coverage": base_cov,
             "tiny_cluster_ratio": base_tiny,
             "n_clusters": base_clusters,

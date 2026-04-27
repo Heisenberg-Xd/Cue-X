@@ -19,6 +19,8 @@ from config import (
     OPTIMIZER_MIN_COVERAGE,
     OPTIMIZER_MAX_TINY_CLUSTER_RATIO,
     OPTIMIZER_MIN_CLUSTER_SIZE_RATIO,
+    OPTIMIZER_BOOTSTRAP_REPEATS,
+    OPTIMIZER_BOOTSTRAP_SAMPLE_RATIO,
 )
 from database import get_connection
 from models import insert_dataset, insert_customers, insert_model_metadata
@@ -38,6 +40,8 @@ def _optimizer_config() -> dict:
         "min_coverage": OPTIMIZER_MIN_COVERAGE,
         "max_tiny_ratio": OPTIMIZER_MAX_TINY_CLUSTER_RATIO,
         "min_cluster_size_ratio": OPTIMIZER_MIN_CLUSTER_SIZE_RATIO,
+        "bootstrap_repeats": OPTIMIZER_BOOTSTRAP_REPEATS,
+        "bootstrap_sample_ratio": OPTIMIZER_BOOTSTRAP_SAMPLE_RATIO,
     }
 
 
