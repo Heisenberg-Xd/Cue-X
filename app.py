@@ -1,6 +1,8 @@
 # Render Start Command:
 # gunicorn "app:create_app()" --workers 1 --threads 4 --bind 0.0.0.0:$PORT
 
+print("[BOOT] Loading ML models...")
+
 from flask import Flask
 from flask_cors import CORS
 from config import settings

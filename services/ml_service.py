@@ -9,19 +9,25 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from config import RFM_MODEL_PATH, RFM_SCALER_PATH, RFM_MAP_PATH
 
-try:
-    rfm_model = joblib.load(RFM_MODEL_PATH)
-    print("[OK] RFM model loaded")
-except Exception as e:
-    print(f"[WARN] model load failed: {e}")
-    rfm_model = None
+import os
 
-try:
-    rfm_scaler = joblib.load(RFM_SCALER_PATH)
+def load_rfm_model():
+    if not os.path.exists(RFM_MODEL_PATH):
+        raise FileNotFoundError(f"Missing model: {RFM_MODEL_PATH}")
+    model = joblib.load(RFM_MODEL_PATH)
+    print("[OK] RFM model loaded")
+    return model
+
+def load_rfm_scaler():
+    if not os.path.exists(RFM_SCALER_PATH):
+        raise FileNotFoundError(f"Missing scaler: {RFM_SCALER_PATH}")
+    scaler = joblib.load(RFM_SCALER_PATH)
     print("[OK] RFM scaler loaded")
-except Exception as e:
-    print(f"[WARN] model load failed: {e}")
-    rfm_scaler = None
+    return scaler
+
+# We initialize these right here so any module importing this fails fast
+rfm_model = load_rfm_model()
+rfm_scaler = load_rfm_scaler()
 
 try:
     with open(RFM_MAP_PATH, 'r') as f:
