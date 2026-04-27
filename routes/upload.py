@@ -149,14 +149,57 @@ def map_sales_columns(raw: pd.DataFrame):
     return standardized, mapping
 
 
-def _build_fallback_segment_map(cluster_ids):
-    return {
-        str(int(cluster_id)): {
-            "Segment_Name": f"Segment {int(cluster_id)}",
-            "Campaign_Strategy": "Standard engagement"
+def _build_fallback_segment_map(rfm_df: pd.DataFrame):
+    """
+    Build dynamic segment names from cluster behavior so labels remain meaningful
+    when auto-selected k is not the same as the static map size.
+    """
+    if rfm_df.empty or "Cluster" not in rfm_df.columns:
+        return {}
+
+    cluster_profile = (
+        rfm_df.groupby("Cluster", as_index=False)
+        .agg(
+            Recency=("Recency", "mean"),
+            Frequency=("Frequency", "mean"),
+            Monetary=("Monetary", "mean"),
+        )
+        .copy()
+    )
+
+    # Higher score means stronger customer value:
+    # lower recency is better, higher frequency/monetary is better.
+    cluster_profile["recency_rank"] = cluster_profile["Recency"].rank(method="dense", ascending=True)
+    cluster_profile["frequency_rank"] = cluster_profile["Frequency"].rank(method="dense", ascending=True)
+    cluster_profile["monetary_rank"] = cluster_profile["Monetary"].rank(method="dense", ascending=True)
+    cluster_profile["composite"] = (
+        cluster_profile["frequency_rank"] + cluster_profile["monetary_rank"] - cluster_profile["recency_rank"]
+    )
+    cluster_profile = cluster_profile.sort_values("composite", ascending=False).reset_index(drop=True)
+
+    archetypes = [
+        ("Champions", "Reward loyalty with VIP perks and premium upsells."),
+        ("Loyal Customers", "Promote memberships, bundles, and referral incentives."),
+        ("Potential Loyalists", "Nurture with personalized recommendations and reminders."),
+        ("Promising", "Encourage second and third purchases with timed offers."),
+        ("Needs Attention", "Run re-engagement nudges and value-driven campaigns."),
+        ("At Risk", "Use win-back journeys with stronger urgency and incentives."),
+    ]
+
+    segment_map: dict[str, dict[str, str]] = {}
+    for idx, row in cluster_profile.iterrows():
+        cluster_id = str(int(row["Cluster"]))
+        if idx < len(archetypes):
+            name, strategy = archetypes[idx]
+        else:
+            name = f"Emerging Segment {idx - len(archetypes) + 1}"
+            strategy = "Explore targeted experiments to refine this segment's lifecycle strategy."
+        segment_map[cluster_id] = {
+            "Segment_Name": name,
+            "Campaign_Strategy": strategy,
         }
-        for cluster_id in sorted(cluster_ids)
-    }
+
+    return segment_map
 
 
 def _validation_error(message: str, details: dict | None = None):
@@ -276,7 +319,7 @@ def upload_file(user_id):
         if selected_k == len(map_keys) and map_keys == {str(i) for i in range(selected_k)}:
             active_segment_map = rfm_segment_map
         else:
-            active_segment_map = _build_fallback_segment_map(rfm['Cluster'].unique())
+            active_segment_map = _build_fallback_segment_map(rfm)
 
         # ── Step 4: RFM quintile scoring (1-5) ───────────────────────────────
         def score_quintile(series, ascending=True):
