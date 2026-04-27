@@ -51,19 +51,16 @@ def create_app():
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-    # Build allowed origins: always include localhost for dev.
-    # In production, set FRONTEND_URL to your deployed frontend domain.
-    allowed_origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
-    if settings.FRONTEND_URL:
-        allowed_origins.append(settings.FRONTEND_URL.rstrip("/"))
+    app.config["CORS_HEADERS"] = "Content-Type"
 
     CORS(
         app,
-        resources={r"/*": {"origins": allowed_origins}},
+        origins=[
+            "http://localhost:5173",
+            "https://cuex.vercel.app"
+        ],
         supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
         expose_headers=["X-Cache"]
     )
     app.register_blueprint(upload_bp)
