@@ -77,12 +77,25 @@ CREATE TABLE IF NOT EXISTS workspaces (
     created_at  TIMESTAMP   DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS data_sources (
+    id                SERIAL PRIMARY KEY,
+    workspace_id      INTEGER     REFERENCES workspaces(id) ON DELETE CASCADE,
+    source_type       TEXT        NOT NULL DEFAULT 'manual',
+    config            TEXT        DEFAULT '{}',
+    is_active         BOOLEAN     DEFAULT true,
+    auto_sync_enabled BOOLEAN     DEFAULT false,
+    last_synced_at    TIMESTAMP,
+    created_at        TIMESTAMP   DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS datasets (
-    id            SERIAL PRIMARY KEY,
-    workspace_id  INTEGER     REFERENCES workspaces(id) ON DELETE CASCADE,
-    filename      TEXT        NOT NULL,
-    uploaded_at   TIMESTAMP   DEFAULT now(),
-    row_count     INTEGER
+    id             SERIAL PRIMARY KEY,
+    workspace_id   INTEGER     REFERENCES workspaces(id) ON DELETE CASCADE,
+    source_id      INTEGER     REFERENCES data_sources(id) ON DELETE SET NULL,
+    ingestion_type TEXT        DEFAULT 'manual',
+    filename       TEXT        NOT NULL,
+    uploaded_at    TIMESTAMP   DEFAULT now(),
+    row_count      INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -128,6 +141,20 @@ def init_db():
                         WHERE table_name='datasets' AND column_name='workspace_id'
                     ) THEN
                         ALTER TABLE datasets ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE;
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='datasets' AND column_name='source_id'
+                    ) THEN
+                        ALTER TABLE datasets ADD COLUMN source_id INTEGER REFERENCES data_sources(id) ON DELETE SET NULL;
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='datasets' AND column_name='ingestion_type'
+                    ) THEN
+                        ALTER TABLE datasets ADD COLUMN ingestion_type TEXT DEFAULT 'manual';
                     END IF;
                     
                     IF NOT EXISTS (
