@@ -45,6 +45,8 @@ site-packages/
 # Uploaded / processed data files
 uploads/
 *.csv
+!data/samples/StyleSense_Dataset_updated.csv
+!frontend/public/samples/StyleSense_Dataset_updated.csv
 *.xlsx
 *.xls
 *.parquet

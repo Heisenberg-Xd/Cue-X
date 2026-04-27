@@ -5,9 +5,9 @@ import {
   Trash2, ToggleLeft, ToggleRight, Clock, AlertCircle,
   CheckCircle, Loader2, Wifi, WifiOff,
 } from 'lucide-react';
-import { getAuthHeaders } from '../utils/api';
+import { getAuthHeaders, getApiBaseUrl } from '../utils/api';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_BASE = getApiBaseUrl();
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface DataSource {
@@ -223,7 +223,7 @@ export const DataSourcesPanel: React.FC<DataSourcesPanelProps> = ({ workspaceId 
     if (!workspaceId) return;
     try {
       const res = await fetch(
-        `${API_URL}/api/integrations/sources?workspace_id=${workspaceId}`,
+        `${API_BASE}/api/integrations/sources?workspace_id=${workspaceId}`,
         { headers: getAuthHeaders() }
       );
       if (res.ok) setSources(await res.json());
@@ -238,7 +238,7 @@ export const DataSourcesPanel: React.FC<DataSourcesPanelProps> = ({ workspaceId 
   useEffect(() => { fetchSources(); }, [fetchSources]);
 
   const handleToggleSync = async (sourceId: number, enabled: boolean) => {
-    await fetch(`${API_URL}/api/integrations/${sourceId}/toggle-sync`, {
+    await fetch(`${API_BASE}/api/integrations/${sourceId}/toggle-sync`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
@@ -249,7 +249,7 @@ export const DataSourcesPanel: React.FC<DataSourcesPanelProps> = ({ workspaceId 
   };
 
   const handleRefresh = async (sourceId: number) => {
-    await fetch(`${API_URL}/api/integrations/${sourceId}/refresh`, {
+    await fetch(`${API_BASE}/api/integrations/${sourceId}/refresh`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -257,7 +257,7 @@ export const DataSourcesPanel: React.FC<DataSourcesPanelProps> = ({ workspaceId 
   };
 
   const handleDisconnect = async (sourceId: number) => {
-    await fetch(`${API_URL}/api/integrations/${sourceId}`, {
+    await fetch(`${API_BASE}/api/integrations/${sourceId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });

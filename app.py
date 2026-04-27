@@ -48,11 +48,13 @@ def create_app():
                 "origins": [
                     "http://localhost:5173",
                     "http://127.0.0.1:5173",
-                ]
+                ],
+                "allow_headers": ["Authorization", "Content-Type"],
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             }
         },
         supports_credentials=True,
-        expose_headers=["X-Cache"]
+        expose_headers=["X-Cache"],
     )
     app.register_blueprint(upload_bp)
     app.register_blueprint(charts_bp)

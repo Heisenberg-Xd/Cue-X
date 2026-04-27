@@ -3,8 +3,13 @@ import { motion } from 'framer-motion';
 import {
   Webhook, Copy, Check, ArrowRight, ExternalLink, RefreshCw
 } from 'lucide-react';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = import.meta.env.VITE_API_URL;
+function webhookPublicBase(): string {
+  const b = getApiBaseUrl();
+  if (b) return b;
+  return typeof window !== 'undefined' ? window.location.origin : '';
+}
 
 interface WebhookCardProps {
   workspaceId: number;
@@ -23,7 +28,7 @@ const TOOLS = [
 ];
 
 export const WebhookCard: React.FC<WebhookCardProps> = ({ workspaceId }) => {
-  const webhookUrl = `${API_URL}/api/integrations/webhook/${workspaceId}`;
+  const webhookUrl = `${webhookPublicBase()}/api/integrations/webhook/${workspaceId}`;
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);

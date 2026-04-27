@@ -13,7 +13,7 @@ import { LogoutButton } from '../components/LogoutButton';
 import { ExecutiveSummary } from '../components/ExecutiveSummary';
 import { StrategyCard, StrategyDetail } from '../components/StrategyCard';
 import type { Strategy } from '../components/StrategyCard';
-import { fetchWithAuth, getAuthHeaders } from '../utils/api';
+import { fetchWithAuth, getAuthHeaders, getApiBaseUrl } from '../utils/api';
 
 interface ChartData { labels: string[]; values: number[] }
 interface ScatterPoint { name: string; data: [number, number, string][] }
@@ -60,7 +60,7 @@ const TAB_ITEMS: { id: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 const Visualization = () => {
-  const API_URL = import.meta.env.VITE_API_URL;
+  const apiBase = getApiBaseUrl();
   const { dataset_id } = useParams<{ dataset_id: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
@@ -71,7 +71,7 @@ const Visualization = () => {
   const fetchStrategy = async (segmentId: number) => {
     setLoadingSegments(prev => new Set(prev).add(segmentId));
     try {
-      const res = await fetch(`${API_URL}/api/strategy/${dataset_id}/${segmentId}`, { headers: getAuthHeaders() });
+      const res = await fetch(`${apiBase}/api/strategy/${dataset_id}/${segmentId}`, { headers: getAuthHeaders() });
       console.log(`[Strategy ${segmentId}] Cache:`, res.headers.get("X-Cache"));
       const data = await res.json();
       if (data.success) {
@@ -100,11 +100,11 @@ const Visualization = () => {
   const loadAnalyticsData = async () => {
     try {
       const [segRes, spendRes, scatterRes, seasonalRes, rfmRes] = await Promise.all([
-        fetch(`${API_URL}/api/segment-counts/${dataset_id}`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/spending-by-segment/${dataset_id}`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/recency-value-scatter/${dataset_id}`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/seasonal-distribution/${dataset_id}`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/rfm-scores/${dataset_id}`, { headers: getAuthHeaders() }),
+        fetch(`${apiBase}/api/segment-counts/${dataset_id}`, { headers: getAuthHeaders() }),
+        fetch(`${apiBase}/api/spending-by-segment/${dataset_id}`, { headers: getAuthHeaders() }),
+        fetch(`${apiBase}/api/recency-value-scatter/${dataset_id}`, { headers: getAuthHeaders() }),
+        fetch(`${apiBase}/api/seasonal-distribution/${dataset_id}`, { headers: getAuthHeaders() }),
+        fetch(`${apiBase}/api/rfm-scores/${dataset_id}`, { headers: getAuthHeaders() }),
       ]);
       
       console.log("[Charts] Cache Headers:", {
@@ -132,7 +132,7 @@ const Visualization = () => {
       } catch (err) { console.error('Fetch error', err); }
       finally { setIsLoading(false); }
     })();
-  }, [dataset_id, API_URL]);
+  }, [dataset_id, apiBase]);
 
   useEffect(() => {
     if (!dataset_id) return;
@@ -233,7 +233,7 @@ const Visualization = () => {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <LogoutButton />
-            <a href={`${API_URL}/download`} className="px-5 py-2.5 rounded-lg bg-white text-black hover:bg-neutral-200 transition-all font-medium text-sm flex items-center gap-2">
+            <a href={`${apiBase}/download`} className="px-5 py-2.5 rounded-lg bg-white text-black hover:bg-neutral-200 transition-all font-medium text-sm flex items-center gap-2">
               <Download className="w-4 h-4" /> Export CSV
             </a>
           </div>
@@ -669,7 +669,7 @@ const Visualization = () => {
         {activeTab === 'chat' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="max-w-3xl mx-auto">
-              <DataChat datasetId={dataset_id} apiUrl={API_URL} />
+              <DataChat datasetId={dataset_id} apiUrl={apiBase} />
             </div>
           </motion.div>
         )}
@@ -677,7 +677,7 @@ const Visualization = () => {
         {/* ── TAB: EXECUTIVE SUMMARY ────────────────────────────────────────── */}
         {activeTab === 'summary' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <ExecutiveSummary datasetId={dataset_id} apiUrl={API_URL} />
+            <ExecutiveSummary datasetId={dataset_id} apiUrl={apiBase} />
           </motion.div>
         )}
 
@@ -685,7 +685,7 @@ const Visualization = () => {
         <footer className="mt-16 py-8 border-t border-neutral-900 flex justify-between items-center text-neutral-500 text-xs">
           <div className="flex items-center gap-4">
             <Link to="/" className="hover:text-neutral-300 transition-colors">Home</Link>
-            <a href={`${API_URL}/download`} className="hover:text-neutral-300 transition-colors">Download CSV</a>
+            <a href={`${apiBase}/download`} className="hover:text-neutral-300 transition-colors">Download CSV</a>
           </div>
           <span>CUE-X Analytics · RFM Engine v2</span>
         </footer>
