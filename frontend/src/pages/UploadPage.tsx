@@ -255,8 +255,7 @@ const UploadPage = () => {
             </div>
 
             <div className="w-full max-w-2xl h-px bg-white/10 mb-8" />
-            
-            {/* Step 3: Existing Datasets */}
+
             <DatasetSelector workspaceId={selectedWorkspaceId} />
           </div>
         )}

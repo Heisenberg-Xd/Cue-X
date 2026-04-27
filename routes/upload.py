@@ -25,6 +25,12 @@ _optimizer_jobs: dict[int, dict] = {}
 _optimizer_lock = threading.Lock()
 
 
+def forget_optimizer_job(dataset_id: int) -> None:
+    """Drop in-memory optimizer state when a dataset is removed."""
+    with _optimizer_lock:
+        _optimizer_jobs.pop(dataset_id, None)
+
+
 def _optimizer_config() -> dict:
     return {
         "max_k":                 getattr(settings, "OPTIMIZER_MAX_K", 10),

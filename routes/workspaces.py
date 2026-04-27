@@ -3,6 +3,7 @@ from database import get_connection
 from models import insert_workspace, get_workspaces, get_datasets_by_workspace, text, serialize_datetime
 from utils.auth import login_required
 from services.cache import clear_cache
+from routes.upload import forget_optimizer_job
 
 workspace_bp = Blueprint("workspaces", __name__, url_prefix="/api/workspaces")
 
@@ -176,7 +177,8 @@ def delete_workspace(user_id, workspace_id):
                 # Clear cache for each dataset
                 clear_cache(f"dashboard:{ds_id}:")
                 clear_cache(f"ai:{ds_id}:")
-                
+                forget_optimizer_job(ds_id)
+
                 # Delete related models and customers for the dataset
                 conn.execute(text("DELETE FROM models_used WHERE dataset_id = :id"), {"id": ds_id})
                 conn.execute(text("DELETE FROM customers WHERE dataset_id = :id"), {"id": ds_id})
