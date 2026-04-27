@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { DragEvent } from 'react';
+import { motion } from 'framer-motion';
 import { Upload, Play } from 'lucide-react';
 import { AppBackground } from '../components/ui/AppBackground';
 import { WorkspaceSelector } from '../components/WorkspaceSelector';
 import { DatasetSelector } from '../components/DatasetSelector';
+import { DataSourcesPanel } from '../components/DataSourcesPanel';
+import { WebhookCard } from '../components/WebhookCard';
 import { getAuthHeaders } from '../utils/api';
 
 const UploadPage = () => {
@@ -16,6 +19,12 @@ const UploadPage = () => {
     const saved = localStorage.getItem('cuex_workspace_id');
     return saved ? parseInt(saved) : null;
   });
+
+  // Integration states
+  const [showSheetConnect, setShowSheetConnect] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [isConnectingSheet, setIsConnectingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedWorkspaceId) {
@@ -72,6 +81,35 @@ const UploadPage = () => {
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       setFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleConnectSheet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sheetUrl || !selectedWorkspaceId) return;
+    
+    setIsConnectingSheet(true);
+    setSheetError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/integrations/google-sheets/connect`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: selectedWorkspaceId, sheet_url: sheetUrl })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setShowSheetConnect(false);
+        setSheetUrl('');
+        // We do a hacky reload for now, or just let DataSourcesPanel refetch.
+        // Actually, we can trigger a refetch in DataSourcesPanel by passing a key or we just reload.
+        window.location.reload(); 
+      } else {
+        setSheetError(data.error || 'Failed to connect sheet');
+      }
+    } catch {
+      setSheetError('Network error connecting sheet');
+    } finally {
+      setIsConnectingSheet(false);
     }
   };
 
@@ -155,6 +193,61 @@ const UploadPage = () => {
                 )}
               </button>
             </form>
+
+            <div className="w-full max-w-2xl h-px bg-white/10 mb-8" />
+            
+            {/* Step 2: Integrations & Connected Sources */}
+            <div className="w-full max-w-2xl flex flex-col mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-medium text-white">Connected Sources</h2>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowSheetConnect(!showSheetConnect)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    + Google Sheet
+                  </button>
+                </div>
+              </div>
+
+              {/* Connect Google Sheet Form */}
+              {showSheetConnect && (
+                <motion.form 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-6 p-4 rounded-2xl glass-card space-y-3"
+                  onSubmit={handleConnectSheet}
+                >
+                  <p className="text-sm text-neutral-300">Enter a public Google Sheet URL (Must be "Anyone with link can view")</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="url" 
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                      value={sheetUrl}
+                      onChange={(e) => setSheetUrl(e.target.value)}
+                      required
+                    />
+                    <button 
+                      type="submit" 
+                      disabled={isConnectingSheet}
+                      className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-medium text-sm rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isConnectingSheet ? 'Connecting...' : 'Connect'}
+                    </button>
+                  </div>
+                  {sheetError && <p className="text-xs text-red-400">{sheetError}</p>}
+                </motion.form>
+              )}
+
+              {/* Webhook Card */}
+              <div className="mb-6">
+                <WebhookCard workspaceId={selectedWorkspaceId} />
+              </div>
+
+              {/* Active Sources Panel */}
+              <DataSourcesPanel workspaceId={selectedWorkspaceId} />
+            </div>
 
             <div className="w-full max-w-2xl h-px bg-white/10 mb-8" />
             
