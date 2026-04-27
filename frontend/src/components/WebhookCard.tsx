@@ -4,7 +4,7 @@ import {
   Webhook, Copy, Check, ArrowRight, ExternalLink, RefreshCw
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL;
+import { API_BASE } from '../config/api';
 
 interface WebhookCardProps {
   workspaceId: number;
@@ -23,7 +23,7 @@ const TOOLS = [
 ];
 
 export const WebhookCard: React.FC<WebhookCardProps> = ({ workspaceId }) => {
-  const webhookUrl = `${API_URL}/api/integrations/webhook/${workspaceId}`;
+  const webhookUrl = `${API_BASE}/api/integrations/webhook/${workspaceId}`;
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);

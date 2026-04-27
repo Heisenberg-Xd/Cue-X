@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+import { API_BASE } from '../config/api';
 
 export function getToken(): string | null {
     return localStorage.getItem('auth_token');
@@ -29,21 +29,27 @@ export async function fetchWithAuth(endpoint: string, options: RequestInit = {})
         headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            ...options,
+            headers,
+            credentials: 'include'
+        });
 
-    if (response.status === 401) {
-        // Token expired or invalid
-        removeToken();
-        // Redirect to login if we are not already there
-        if (window.location.pathname !== '/auth') {
-            window.location.href = '/auth';
+        if (response.status === 401) {
+            // Token expired or invalid
+            removeToken();
+            // Redirect to login if we are not already there
+            if (window.location.pathname !== '/auth') {
+                window.location.href = '/auth';
+            }
         }
-    }
 
-    return response;
+        return response;
+    } catch (error) {
+        console.error("[API ERROR]", error);
+        throw error;
+    }
 }
 
 export function getAuthHeaders(): Record<string, string> {
