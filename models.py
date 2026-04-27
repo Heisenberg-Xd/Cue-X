@@ -96,21 +96,23 @@ def get_datasets_by_workspace(conn, workspace_id: int):
         logger.error(f"[DB] get_datasets_by_workspace failed: {exc}")
         return []
 
-def insert_dataset(conn, filename: str, row_count: int, workspace_id: int = None) -> int | None:
+def insert_dataset(conn, filename: str, row_count: int, workspace_id: int = None,
+                   source_id: int = None, ingestion_type: str = 'manual') -> int | None:
     """
-    Insert a record for the uploaded CSV file.
+    Insert a record for the uploaded/synced file.
     Returns the new dataset_id (int) or None on failure.
     """
     try:
         result = conn.execute(
             text(
-                "INSERT INTO datasets (filename, row_count, workspace_id) "
-                "VALUES (:filename, :row_count, :workspace_id) RETURNING id"
+                "INSERT INTO datasets (filename, row_count, workspace_id, source_id, ingestion_type) "
+                "VALUES (:filename, :row_count, :workspace_id, :source_id, :ingestion_type) RETURNING id"
             ),
-            {"filename": filename, "row_count": row_count, "workspace_id": workspace_id},
+            {"filename": filename, "row_count": row_count, "workspace_id": workspace_id,
+             "source_id": source_id, "ingestion_type": ingestion_type},
         )
         dataset_id = result.fetchone()[0]
-        logger.info(f"[DB] Dataset inserted: id={dataset_id}, file={filename}, ws={workspace_id}")
+        logger.info(f"[DB] Dataset inserted: id={dataset_id}, file={filename}, ws={workspace_id}, type={ingestion_type}")
         return dataset_id
     except Exception as exc:
         logger.error(f"[DB] insert_dataset failed: {exc}")
@@ -197,3 +199,112 @@ def insert_model_metadata(
     except Exception as exc:
         logger.error(f"[DB] insert_model_metadata failed: {exc}")
         return None
+
+
+# ── data_sources ──────────────────────────────────────────────────────────────
+def insert_data_source(conn, workspace_id: int, source_type: str, config: dict,
+                       auto_sync_enabled: bool = False) -> int | None:
+    """Create a new data source entry. Returns source_id or None."""
+    import json
+    try:
+        result = conn.execute(
+            text(
+                "INSERT INTO data_sources (workspace_id, source_type, config, auto_sync_enabled) "
+                "VALUES (:workspace_id, :source_type, :config, :auto_sync_enabled) RETURNING id"
+            ),
+            {"workspace_id": workspace_id, "source_type": source_type,
+             "config": json.dumps(config), "auto_sync_enabled": auto_sync_enabled},
+        )
+        source_id = result.fetchone()[0]
+        logger.info(f"[DB] Data source created: id={source_id}, type={source_type}, ws={workspace_id}")
+        return source_id
+    except Exception as exc:
+        logger.error(f"[DB] insert_data_source failed: {exc}")
+        return None
+
+
+def get_data_sources_by_workspace(conn, workspace_id: int) -> list:
+    """List all data sources for a workspace."""
+    import json
+    try:
+        result = conn.execute(
+            text("SELECT id, source_type, config, is_active, auto_sync_enabled, last_synced_at, created_at "
+                 "FROM data_sources WHERE workspace_id = :ws_id ORDER BY created_at DESC"),
+            {"ws_id": workspace_id}
+        )
+        rows = []
+        for row in result.fetchall():
+            d = dict(row._mapping)
+            d['last_synced_at'] = serialize_datetime(d.get('last_synced_at'))
+            d['created_at'] = serialize_datetime(d.get('created_at'))
+            try:
+                d['config'] = json.loads(d['config']) if d['config'] else {}
+            except Exception:
+                d['config'] = {}
+            rows.append(d)
+        return rows
+    except Exception as exc:
+        logger.error(f"[DB] get_data_sources_by_workspace failed: {exc}")
+        return []
+
+
+def update_data_source_sync_time(conn, source_id: int) -> bool:
+    """Update last_synced_at to now for a source."""
+    try:
+        conn.execute(
+            text("UPDATE data_sources SET last_synced_at = now() WHERE id = :id"),
+            {"id": source_id}
+        )
+        return True
+    except Exception as exc:
+        logger.error(f"[DB] update_data_source_sync_time failed: {exc}")
+        return False
+
+
+def toggle_auto_sync(conn, source_id: int, enabled: bool) -> bool:
+    """Enable or disable auto_sync for a data source."""
+    try:
+        conn.execute(
+            text("UPDATE data_sources SET auto_sync_enabled = :enabled WHERE id = :id"),
+            {"enabled": enabled, "id": source_id}
+        )
+        return True
+    except Exception as exc:
+        logger.error(f"[DB] toggle_auto_sync failed: {exc}")
+        return False
+
+
+def deactivate_data_source(conn, source_id: int) -> bool:
+    """Soft-delete a data source by marking it inactive."""
+    try:
+        conn.execute(
+            text("UPDATE data_sources SET is_active = false, auto_sync_enabled = false WHERE id = :id"),
+            {"id": source_id}
+        )
+        return True
+    except Exception as exc:
+        logger.error(f"[DB] deactivate_data_source failed: {exc}")
+        return False
+
+
+def get_active_auto_sync_sources(conn) -> list:
+    """Return all active sources with auto_sync_enabled = true."""
+    import json
+    try:
+        result = conn.execute(
+            text("SELECT id, workspace_id, source_type, config "
+                 "FROM data_sources WHERE is_active = true AND auto_sync_enabled = true")
+        )
+        rows = []
+        for row in result.fetchall():
+            d = dict(row._mapping)
+            try:
+                d['config'] = json.loads(d['config']) if d['config'] else {}
+            except Exception:
+                d['config'] = {}
+            rows.append(d)
+        return rows
+    except Exception as exc:
+        logger.error(f"[DB] get_active_auto_sync_sources failed: {exc}")
+        return []
+
