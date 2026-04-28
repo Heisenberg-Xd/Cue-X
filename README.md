@@ -20,7 +20,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Render-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 
-### 🚀 **[LIVE DEMO](https://cue-x.vercel.app/)** 🚀
+### 🚀 **[LIVE DEMO](https://cuex.vercel.app)** 🚀
 
 </div>
 
@@ -234,12 +234,12 @@ Software.
 <div align="center">
 
 ```
-Built with ❤️  by the CUE-X Team
+Built by the CUE-X Team
 Segment Smarter · Market Sharper
 ```
 
-**⭐ Star this repo if CUE-X helped your project!**
+** Star this repo if CUE-X helped your project!**
 
-**🌐 [Try the Live Demo](https://cue-x.vercel.app/)**
+**🌐 [Try the Live Demo](https://cuex.vercel.app)**
 
 </div>
