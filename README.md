@@ -1,3 +1,5 @@
+#  Version 1.0
+
 ```
  ██████╗██╗   ██╗███████╗       ██╗  ██╗
 ██╔════╝██║   ██║██╔════╝       ╚██╗██╔╝
@@ -30,7 +32,7 @@
 
 **CUE-X** is an enterprise-grade, AI-powered **Customer Segmentation Platform** designed to transform raw purchase data into actionable marketing intelligence. By bridging advanced machine learning (K-Means + RFM Scoring) with a robust multi-model Generative AI backend, CUE-X allows marketers to automatically cluster audiences, chat directly with their data, and deploy live integrations via Google Sheets or Webhooks.
 
-> _"Know your customers—Own your market."_
+> _"Know your customers and Own your market."_
 
 ---
 
@@ -43,6 +45,7 @@ At the core of CUE-X is a robust, pre-trained Scikit-Learn machine learning pipe
 - **RFM Processing:** The system automatically calculates **Recency** (days since last purchase), **Frequency** (total purchases), and **Monetary** value (total spend) for every unique customer in your dataset.
 - **K-Means Clustering:** Data is normalized using a `StandardScaler` and passed through a highly optimized K-Means model (`k=4`) to group customers into distinct behavioral segments without human bias.
 - **Actionable Outputs:** Customers are dynamically mapped into actionable categories: _High-Value Loyal Customers_, _Low-Value Frequent Buyers_, _Lost Customers_, and _Seasonal Buyers_.
+- **Performance:** Optimized data processing pipelines for faster segmentation.
 
 ### 2. 🤖 Resilient Multi-Model AI System (Gemini)
 CUE-X is equipped with a fault-tolerant, multi-tier Generative AI architecture leveraging the `google.generativeai` SDK (`gemini-2.5-flash`).
@@ -242,4 +245,8 @@ Segment Smarter · Market Sharper
 
 **🌐 [Try the Live Demo](https://cuex.vercel.app)**
 
+---
+🛠️ **Maintainer:** [CUE-X Team](https://github.com/Heisenberg-Xd)
+
 </div>
+
