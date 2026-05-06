@@ -19,13 +19,14 @@ export function isAuthenticated(): boolean {
 export async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     const token = getToken();
     const headers = new Headers(options.headers || {});
-    
+
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    // Default to JSON if not explicitly sending FormData
-    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    // Only set JSON Content-Type when there is a body (GET must not send application/json).
+    const body = options.body;
+    if (!headers.has('Content-Type') && body != null && !(body instanceof FormData)) {
         headers.set('Content-Type', 'application/json');
     }
 

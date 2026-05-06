@@ -3,7 +3,7 @@ import { LogOut } from 'lucide-react';
 import { removeToken } from '../utils/api';
 
 const baseClass =
-  'inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-neutral-400 hover:text-white border border-white/10 hover:border-white/25 hover:bg-white/5 transition-all';
+  'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-white border border-white/10 hover:border-white/25 hover:bg-white/5 transition-all';
 
 type Props = { className?: string };
 

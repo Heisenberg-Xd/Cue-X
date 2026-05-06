@@ -15,6 +15,8 @@ interface DatasetSelectorProps {
   workspaceId: number;
   onDatasetSelect?: (id: number) => void;
   selectedDatasetId?: number | null;
+  /** Hide built-in section title when the parent page already provides a heading. */
+  embedded?: boolean;
 }
 
 // ── Minimal toast state ───────────────────────────────────────────────────────
@@ -81,7 +83,12 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ filename, isDeleting, onCon
 );
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export const DatasetSelector: React.FC<DatasetSelectorProps> = ({ workspaceId, onDatasetSelect, selectedDatasetId }) => {
+export const DatasetSelector: React.FC<DatasetSelectorProps> = ({
+  workspaceId,
+  onDatasetSelect,
+  selectedDatasetId,
+  embedded = false,
+}) => {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
@@ -137,13 +144,21 @@ export const DatasetSelector: React.FC<DatasetSelectorProps> = ({ workspaceId, o
   const pendingDataset = datasets.find(d => d.id === pendingDeleteId);
 
   if (isLoading) {
-    return <div className="text-sm text-neutral-500 animate-pulse flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading datasets...</div>;
+    return (
+      <div className="text-sm text-neutral-500 animate-pulse flex items-center gap-2 py-1">
+        <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+        Loading datasets…
+      </div>
+    );
   }
 
   if (datasets.length === 0) {
     return (
-      <div className="py-8 text-center border border-dashed border-white/10 rounded-2xl w-full max-w-2xl">
-        <p className="text-sm text-neutral-500">No datasets found in this workspace.</p>
+      <div
+        className={`py-10 text-center border border-dashed border-white/10 rounded-2xl w-full ${embedded ? '' : 'max-w-2xl'}`}
+      >
+        <p className="text-sm text-neutral-500">No datasets in this workspace yet.</p>
+        <p className="text-xs text-neutral-600 mt-2">Upload a CSV above to create your first dataset.</p>
       </div>
     );
   }
@@ -176,11 +191,18 @@ export const DatasetSelector: React.FC<DatasetSelectorProps> = ({ workspaceId, o
         />
       )}
 
-      <div className="w-full max-w-2xl mt-6">
-        <h2 className="text-lg font-medium text-white flex items-center gap-2 mb-4">
-          <Database className="w-5 h-5 text-neutral-400" />
-          Existing Datasets
-        </h2>
+      <div className={embedded ? 'w-full' : 'w-full max-w-2xl mt-6'}>
+        {!embedded && (
+          <div className="mb-5">
+            <h2 className="text-lg font-medium text-white flex items-center gap-2">
+              <Database className="w-5 h-5 text-neutral-400" />
+              Existing Datasets
+            </h2>
+            <p className="text-sm text-neutral-500 mt-2 leading-relaxed">
+              Use <span className="text-neutral-400">Open</span> to view analytics, or <span className="text-neutral-400">Delete</span> to permanently remove a dataset from this workspace.
+            </p>
+          </div>
+        )}
         <div className="space-y-2">
           {datasets.map((ds) => (
             <div
@@ -207,18 +229,20 @@ export const DatasetSelector: React.FC<DatasetSelectorProps> = ({ workspaceId, o
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {/* Delete button */}
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); setPendingDeleteId(ds.id); }}
                   title="Delete dataset"
-                  className="p-2 text-neutral-600 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                  className="px-2.5 py-2 sm:px-3 rounded-xl text-neutral-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex items-center gap-1.5 text-xs font-medium"
+                  aria-label={`Delete dataset ${ds.filename}`}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>Delete</span>
                 </button>
 
-                {/* Open dashboard */}
                 <button
+                  type="button"
                   onClick={() => {
                     if (onDatasetSelect) {
                       onDatasetSelect(ds.id);
@@ -226,9 +250,12 @@ export const DatasetSelector: React.FC<DatasetSelectorProps> = ({ workspaceId, o
                       navigate(`/dashboard/${ds.id}`);
                     }
                   }}
-                  className="p-2 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                  title="Open analytics"
+                  className="px-2.5 py-2 sm:px-3 rounded-xl text-neutral-300 hover:text-white hover:bg-white/10 border border-white/10 transition-all flex items-center gap-1.5 text-xs font-medium"
+                  aria-label={`Open analytics for ${ds.filename}`}
                 >
-                  <ArrowRight className="w-5 h-5" />
+                  <span>Open</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
               </div>
             </div>
