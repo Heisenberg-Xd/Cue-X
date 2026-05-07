@@ -65,8 +65,15 @@ def get_user_by_email(conn, email: str) -> dict | None:
 # ── workspaces ────────────────────────────────────────────────────────────────
 def insert_workspace(conn, name: str, user_id: int) -> int | None:
     """
-    Insert a new workspace.
-    Returns the new workspace_id (int) or None on failure.
+    Creates a new workspace for a user.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        name: Name of the workspace.
+        user_id: ID of the user who owns the workspace.
+        
+    Returns:
+        The new workspace_id (int) or None on failure.
     """
     try:
         result = conn.execute(
@@ -81,7 +88,16 @@ def insert_workspace(conn, name: str, user_id: int) -> int | None:
         return None
 
 def get_workspaces(conn, user_id: int):
-    """List all workspaces for a specific user."""
+    """
+    Retrieves all workspaces associated with a specific user.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        user_id: ID of the user whose workspaces are to be listed.
+        
+    Returns:
+        A list of dictionaries representing the user's workspaces.
+    """
     try:
         result = conn.execute(
             text("SELECT id, name, created_at FROM workspaces WHERE user_id = :user_id ORDER BY created_at DESC"),
