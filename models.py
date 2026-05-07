@@ -278,7 +278,19 @@ def insert_model_metadata(
 # ── data_sources ──────────────────────────────────────────────────────────────
 def insert_data_source(conn, workspace_id: int, source_type: str, config: dict,
                        auto_sync_enabled: bool = False) -> int | None:
-    """Create a new data source entry. Returns source_id or None."""
+    """
+    Registers a new external data source (e.g., Shopify, Google Sheets).
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        workspace_id: ID of the workspace this source belongs to.
+        source_type: Identifier for the type of source.
+        config: Dictionary containing credentials/connection details.
+        auto_sync_enabled: Whether to automatically pull updates.
+        
+    Returns:
+        The ID of the created source, or None on failure.
+    """
     import json
     try:
         result = conn.execute(
@@ -298,7 +310,16 @@ def insert_data_source(conn, workspace_id: int, source_type: str, config: dict,
 
 
 def get_data_sources_by_workspace(conn, workspace_id: int) -> list:
-    """List all data sources for a workspace."""
+    """
+    Lists all data sources configured for a specific workspace.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        workspace_id: ID of the workspace.
+        
+    Returns:
+        A list of dictionaries with source configuration and status.
+    """
     import json
     try:
         result = conn.execute(
