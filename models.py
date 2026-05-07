@@ -236,8 +236,17 @@ def insert_model_metadata(
     silhouette_score: float,
 ) -> int | None:
     """
-    Insert one record describing the clustering model used.
-    Returns the new models_used.id or None on failure.
+    Stores metadata about the clustering model used for segmentation.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        dataset_id: ID of the dataset the model was applied to.
+        model_name: Name/Type of the algorithm (e.g., 'K-Means').
+        parameters: Stringified JSON of model hyperparameters.
+        silhouette_score: Performance metric for the clustering quality.
+        
+    Returns:
+        The ID of the metadata record, or None if insertion fails.
     """
     try:
         result = conn.execute(
