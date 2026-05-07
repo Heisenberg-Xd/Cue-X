@@ -116,7 +116,16 @@ def get_workspaces(conn, user_id: int):
 
 # ── datasets ──────────────────────────────────────────────────────────────────
 def get_datasets_by_workspace(conn, workspace_id: int):
-    """List all datasets in a workspace."""
+    """
+    Retrieves all datasets associated with a specific workspace.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        workspace_id: ID of the workspace.
+        
+    Returns:
+        A list of dictionaries containing dataset metadata (id, filename, uploaded_at, row_count).
+    """
     try:
         result = conn.execute(
             text("SELECT id, filename, uploaded_at, row_count FROM datasets WHERE workspace_id = :ws_id ORDER BY uploaded_at DESC"),
@@ -136,8 +145,18 @@ def get_datasets_by_workspace(conn, workspace_id: int):
 def insert_dataset(conn, filename: str, row_count: int, workspace_id: int = None,
                    source_id: int = None, ingestion_type: str = 'manual') -> int | None:
     """
-    Insert a record for the uploaded/synced file.
-    Returns the new dataset_id (int) or None on failure.
+    Inserts a record for an ingested dataset.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        filename: Name of the file being ingested.
+        row_count: Total number of records in the dataset.
+        workspace_id: Optional workspace ID.
+        source_id: Optional source ID if synced from an external provider.
+        ingestion_type: Method of ingestion (e.g., 'manual', 'sync').
+        
+    Returns:
+        The new dataset_id (int) or None on failure.
     """
     try:
         result = conn.execute(
