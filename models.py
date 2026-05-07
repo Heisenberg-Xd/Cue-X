@@ -178,10 +178,18 @@ def insert_dataset(conn, filename: str, row_count: int, workspace_id: int = None
 # ── customers ─────────────────────────────────────────────────────────────────
 def insert_customers(conn, rfm_df, dataset_id: int) -> bool:
     """
-    Bulk-insert one row per customer from the clustered RFM DataFrame.
-    Expected columns: Customer_ID, Recency, Frequency, Monetary,
-                      Cluster, Segment_Name.
-    Returns True on success, False on failure.
+    Performs a bulk insertion of customer records derived from RFM analysis.
+    
+    This function processes a DataFrame containing customer metrics and cluster assignments,
+    converting each row into a dictionary for batch execution via SQLAlchemy.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        rfm_df: pandas DataFrame with columns: Customer_ID, Recency, Frequency, Monetary, Cluster, Segment_Name.
+        dataset_id: The ID of the dataset these customers belong to.
+        
+    Returns:
+        True if the bulk insertion was successful, False otherwise.
     """
     rows = [
         {
