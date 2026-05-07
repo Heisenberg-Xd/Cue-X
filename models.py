@@ -19,6 +19,17 @@ def serialize_datetime(value):
 
 # ── users ──────────────────────────────────────────────────────────────────────
 def create_user(conn, email: str, password_hash: str) -> int | None:
+    """
+    Creates a new user record in the database.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        email: The user's email address.
+        password_hash: The hashed password for security.
+        
+    Returns:
+        The ID of the newly created user, or None if insertion fails.
+    """
     try:
         result = conn.execute(
             text("INSERT INTO users (email, password_hash) VALUES (:email, :password_hash) RETURNING id"),
@@ -30,6 +41,16 @@ def create_user(conn, email: str, password_hash: str) -> int | None:
         return None
 
 def get_user_by_email(conn, email: str) -> dict | None:
+    """
+    Retrieves user details by their email address.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        email: The email address to search for.
+        
+    Returns:
+        A dictionary containing user 'id', 'email', and 'password_hash', or None if not found.
+    """
     try:
         result = conn.execute(
             text("SELECT id, email, password_hash FROM users WHERE email = :email"),
