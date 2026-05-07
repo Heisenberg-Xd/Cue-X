@@ -344,7 +344,16 @@ def get_data_sources_by_workspace(conn, workspace_id: int) -> list:
 
 
 def update_data_source_sync_time(conn, source_id: int) -> bool:
-    """Update last_synced_at to now for a source."""
+    """
+    Updates the 'last_synced_at' timestamp to the current time for a given source.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        source_id: ID of the data source.
+        
+    Returns:
+        True if the update was successful, False otherwise.
+    """
     try:
         conn.execute(
             text("UPDATE data_sources SET last_synced_at = now() WHERE id = :id"),
@@ -357,7 +366,17 @@ def update_data_source_sync_time(conn, source_id: int) -> bool:
 
 
 def toggle_auto_sync(conn, source_id: int, enabled: bool) -> bool:
-    """Enable or disable auto_sync for a data source."""
+    """
+    Enables or disables the automatic synchronization flag for a data source.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        source_id: ID of the data source.
+        enabled: Boolean flag to enable or disable sync.
+        
+    Returns:
+        True if the status was updated, False otherwise.
+    """
     try:
         conn.execute(
             text("UPDATE data_sources SET auto_sync_enabled = :enabled WHERE id = :id"),
@@ -370,7 +389,16 @@ def toggle_auto_sync(conn, source_id: int, enabled: bool) -> bool:
 
 
 def deactivate_data_source(conn, source_id: int) -> bool:
-    """Soft-delete a data source by marking it inactive."""
+    """
+    Marks a data source as inactive (soft delete) and disables auto-sync.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        source_id: ID of the data source to deactivate.
+        
+    Returns:
+        True if the source was deactivated, False otherwise.
+    """
     try:
         conn.execute(
             text("UPDATE data_sources SET is_active = false, auto_sync_enabled = false WHERE id = :id"),
@@ -383,7 +411,15 @@ def deactivate_data_source(conn, source_id: int) -> bool:
 
 
 def get_active_auto_sync_sources(conn) -> list:
-    """Return all active sources with auto_sync_enabled = true."""
+    """
+    Retrieves all data sources that are both active and have auto-sync enabled.
+    
+    Args:
+        conn: SQLAlchemy connection object.
+        
+    Returns:
+        A list of active sources ready for background synchronization tasks.
+    """
     import json
     try:
         result = conn.execute(
