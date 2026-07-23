@@ -13,6 +13,7 @@ Hybrid data ingestion endpoints for Cue-X:
 
 import io
 import logging
+import traceback
 import requests
 import pandas as pd
 from flask import Blueprint, request, jsonify
@@ -27,7 +28,7 @@ from models import (
 from routes.upload import map_sales_columns
 from services.clustering_service import run_clustering
 from services.cache import clear_cache
-from utils.auth import login_required
+from utils.auth import login_required, verify_workspace_access
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -37,27 +38,52 @@ integrations_bp = Blueprint("integrations", __name__, url_prefix="/api/integrati
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _verify_workspace_ownership(conn, workspace_id: int, user_id: int) -> bool:
-    row = conn.execute(
-        text("SELECT id FROM workspaces WHERE id = :id AND user_id = :uid"),
-        {"id": workspace_id, "uid": user_id},
-    ).fetchone()
-    return row is not None
-
-
 def _verify_source_ownership(conn, source_id: int, user_id: int) -> dict | None:
-    """Return the source row if it belongs to a workspace owned by user_id."""
-    row = conn.execute(
-        text("""
-            SELECT ds.id, ds.workspace_id, ds.source_type, ds.config,
-                   ds.is_active, ds.auto_sync_enabled
-            FROM data_sources ds
-            JOIN workspaces w ON ds.workspace_id = w.id
-            WHERE ds.id = :sid AND w.user_id = :uid
-        """),
-        {"sid": source_id, "uid": user_id},
-    ).fetchone()
-    return dict(row._mapping) if row else None
+    """
+    Return the source row if it belongs to a workspace owned by user_id.
+    Logs ownership details on denial.
+    """
+    try:
+        row = conn.execute(
+            text("""
+                SELECT ds.id, ds.workspace_id, ds.source_type, ds.config,
+                       ds.is_active, ds.auto_sync_enabled
+                FROM data_sources ds
+                JOIN workspaces w ON ds.workspace_id = w.id
+                WHERE ds.id = :sid AND w.user_id = :uid
+            """),
+            {"sid": source_id, "uid": user_id},
+        ).fetchone()
+        if row is None:
+            # Log exactly why — does the source exist at all?
+            source_row = conn.execute(
+                text("SELECT id, workspace_id FROM data_sources WHERE id = :sid"),
+                {"sid": source_id}
+            ).fetchone()
+            if source_row is None:
+                logger.warning(
+                    "[Integrations] 404 source_id=%s does not exist at all",
+                    source_id
+                )
+            else:
+                ws_row = conn.execute(
+                    text("SELECT user_id FROM workspaces WHERE id = :wid"),
+                    {"wid": source_row[1]}
+                ).fetchone()
+                logger.warning(
+                    "[Integrations] 403 OWNERSHIP MISMATCH | source_id=%s | "
+                    "workspace_id=%s | workspace owned by user_id=%s | requesting user_id=%s",
+                    source_id, source_row[1],
+                    ws_row[0] if ws_row else 'unknown', user_id
+                )
+            return None
+        return dict(row._mapping)
+    except Exception as exc:
+        logger.error(
+            "[Integrations] _verify_source_ownership error | source_id=%s | user_id=%s\n%s",
+            source_id, user_id, traceback.format_exc()
+        )
+        return None
 
 
 def _sheets_url_to_csv_export(url: str) -> str:
@@ -97,8 +123,11 @@ def list_sources(user_id):
     with get_connection() as conn:
         if conn is None:
             return jsonify({"error": "DB unavailable"}), 500
-        if not _verify_workspace_ownership(conn, workspace_id, user_id):
-            return jsonify({"error": "Workspace not found or unauthorized"}), 403
+        if not verify_workspace_access(conn, workspace_id, user_id, endpoint="GET /api/integrations/sources"):
+            return jsonify({
+                "error": "Workspace not found or unauthorized",
+                "detail": f"user_id={user_id} does not own workspace_id={workspace_id}. Check Render logs for ownership details."
+            }), 403
         sources = get_data_sources_by_workspace(conn, workspace_id)
     return jsonify(sources)
 
@@ -121,8 +150,11 @@ def connect_google_sheets(user_id):
     with get_connection() as conn:
         if conn is None:
             return jsonify({"error": "DB unavailable"}), 500
-        if not _verify_workspace_ownership(conn, workspace_id, user_id):
-            return jsonify({"error": "Workspace not found or unauthorized"}), 403
+        if not verify_workspace_access(conn, workspace_id, user_id, endpoint="POST /api/integrations/google-sheets/connect"):
+            return jsonify({
+                "error": "Workspace not found or unauthorized",
+                "detail": f"user_id={user_id} does not own workspace_id={workspace_id}"
+            }), 403
 
         # Validate URL + test fetch before saving
         try:
@@ -186,8 +218,11 @@ def webhook_ingest(user_id, workspace_id):
     with get_connection() as conn:
         if conn is None:
             return jsonify({"error": "DB unavailable"}), 500
-        if not _verify_workspace_ownership(conn, workspace_id, user_id):
-            return jsonify({"error": "Workspace not found or unauthorized"}), 403
+        if not verify_workspace_access(conn, workspace_id, user_id, endpoint=f"POST /api/integrations/webhook/{workspace_id}"):
+            return jsonify({
+                "error": "Workspace not found or unauthorized",
+                "detail": f"user_id={user_id} does not own workspace_id={workspace_id}"
+            }), 403
 
         config = {"endpoint": f"/api/integrations/webhook/{workspace_id}"}
         source_id = insert_data_source(

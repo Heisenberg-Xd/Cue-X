@@ -1,7 +1,8 @@
+import traceback
 from flask import Blueprint, request, jsonify
 from database import get_connection
 from models import insert_workspace, get_workspaces, get_datasets_by_workspace, text, serialize_datetime
-from utils.auth import login_required
+from utils.auth import login_required, verify_workspace_access
 from services.cache import clear_cache
 from routes.upload import forget_optimizer_job
 
@@ -49,20 +50,20 @@ def create_workspace(user_id):
 @workspace_bp.route('/<int:workspace_id>/datasets', methods=['GET'])
 @login_required
 def list_datasets(user_id, workspace_id):
-    print(f"Fetching datasets for workspace {workspace_id}")
+    print(f"Fetching datasets for workspace {workspace_id} by user {user_id}")
     with get_connection() as conn:
         if conn is None:
             return jsonify({'error': 'Database connection failed'}), 500
         try:
-            # First check if the workspace belongs to the user
-            ws = conn.execute(text("SELECT id FROM workspaces WHERE id = :id AND user_id = :user_id"), {"id": workspace_id, "user_id": user_id}).fetchone()
-            if not ws:
-                return jsonify({'error': 'Workspace not found or unauthorized'}), 403
-                
+            if not verify_workspace_access(conn, workspace_id, user_id, endpoint=f"GET /api/workspaces/{workspace_id}/datasets"):
+                return jsonify({
+                    'error': 'Workspace not found or unauthorized',
+                    'detail': f'user_id={user_id} does not own workspace_id={workspace_id}'
+                }), 403
             datasets = get_datasets_by_workspace(conn, workspace_id)
             return jsonify(datasets)
         except Exception as e:
-            print(f"Error listing datasets: {e}")
+            print(f"Error listing datasets: {e}\n{traceback.format_exc()}")
             return jsonify({'error': str(e)}), 500
 
 @workspace_bp.route('/dataset/<int:dataset_id>', methods=['GET'])
@@ -112,7 +113,7 @@ def delete_dataset(user_id, dataset_id):
         if conn is None:
             return jsonify({'error': 'Database connection failed'}), 500
         try:
-            # 1. Validate dataset exists AND user owns it
+            # 1. Validate dataset exists AND user owns it via workspace
             res = conn.execute(text("""
                 SELECT d.id FROM datasets d
                 JOIN workspaces w ON d.workspace_id = w.id
@@ -120,7 +121,21 @@ def delete_dataset(user_id, dataset_id):
             """), {"dataset_id": dataset_id, "user_id": user_id}).fetchone()
 
             if not res:
-                return jsonify({'error': 'Dataset not found or unauthorized'}), 404
+                # Detailed logging for diagnosis
+                ds_row = conn.execute(text("SELECT workspace_id FROM datasets WHERE id = :id"), {"id": dataset_id}).fetchone()
+                if ds_row is None:
+                    print(f"[DELETE] 404 dataset_id={dataset_id} does not exist")
+                    return jsonify({'error': 'Dataset not found or unauthorized'}), 404
+                ws_row = conn.execute(text("SELECT user_id FROM workspaces WHERE id = :id"), {"id": ds_row[0]}).fetchone()
+                print(
+                    f"[DELETE] 403 OWNERSHIP MISMATCH | dataset_id={dataset_id} | "
+                    f"workspace_id={ds_row[0]} | owned by user_id={ws_row[0] if ws_row else 'unknown'} | "
+                    f"requesting user_id={user_id}"
+                )
+                return jsonify({
+                    'error': 'Dataset not found or unauthorized',
+                    'detail': f'user_id={user_id} does not own dataset_id={dataset_id}'
+                }), 404
 
             # 2. Delete child records in safe dependency order
             conn.execute(text("DELETE FROM models_used WHERE dataset_id = :id"), {"id": dataset_id})
@@ -158,13 +173,11 @@ def delete_workspace(user_id, workspace_id):
             return jsonify({'error': 'Database connection failed'}), 500
         try:
             # 1. Validate workspace exists AND user owns it
-            ws = conn.execute(
-                text("SELECT id FROM workspaces WHERE id = :workspace_id AND user_id = :user_id"),
-                {"workspace_id": workspace_id, "user_id": user_id}
-            ).fetchone()
-
-            if not ws:
-                return jsonify({'error': 'Workspace not found or unauthorized'}), 404
+            if not verify_workspace_access(conn, workspace_id, user_id, endpoint=f"DELETE /api/workspaces/{workspace_id}"):
+                return jsonify({
+                    'error': 'Workspace not found or unauthorized',
+                    'detail': f'user_id={user_id} does not own workspace_id={workspace_id}'
+                }), 404
 
             # 2. Find all datasets to clear caches and delete their child records
             datasets = conn.execute(

@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import threading
+import traceback
 import numpy as np
 import pandas as pd
 import re
@@ -16,9 +17,13 @@ from services.cache import clear_cache
 
 from database import get_connection
 from models import insert_dataset, insert_customers, insert_model_metadata
-from utils.auth import login_required
+from utils.auth import login_required, verify_workspace_access
 
 logger = logging.getLogger(__name__)
+
+# Ensure upload folder exists on startup (Render ephemeral filesystem)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+logger.info("[Upload] UPLOAD_FOLDER: %s (exists=%s)", UPLOAD_FOLDER, os.path.exists(UPLOAD_FOLDER))
 
 upload_bp = Blueprint('upload', __name__)
 _optimizer_jobs: dict[int, dict] = {}
@@ -460,20 +465,24 @@ def upload_file(user_id):
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    workspace_id = request.form.get('workspace_id')
-    if not workspace_id:
+    workspace_id_raw = request.form.get('workspace_id')
+    if not workspace_id_raw:
         return jsonify({'error': 'workspace_id is required'}), 400
 
-    # Verify workspace belongs to user
+    try:
+        workspace_id = int(workspace_id_raw)
+    except (ValueError, TypeError):
+        return jsonify({'error': f'workspace_id must be an integer, got: {workspace_id_raw!r}'}), 400
+
+    # Verify workspace belongs to user — log full ownership detail on 403
     with get_connection() as conn:
         if conn is None:
             return jsonify({'error': 'Database connection failed'}), 500
-        ws = conn.execute(
-            text("SELECT id FROM workspaces WHERE id = :id AND user_id = :user_id"),
-            {"id": workspace_id, "user_id": user_id}
-        ).fetchone()
-        if not ws:
-            return jsonify({'error': 'Workspace not found or unauthorized'}), 403
+        if not verify_workspace_access(conn, workspace_id, user_id, endpoint="POST /upload"):
+            return jsonify({
+                'error': 'Workspace not found or unauthorized',
+                'detail': f'user_id={user_id} does not own workspace_id={workspace_id}'
+            }), 403
 
     filename  = f"{datetime.now().timestamp()}_{file.filename}"
     filepath  = os.path.join(UPLOAD_FOLDER, filename)
@@ -558,10 +567,29 @@ def upload_file(user_id):
         }), 200
 
 
+    except ValueError as e:
+        # Column mapping / validation errors — user-facing
+        logger.error("[Upload] Validation error | user_id=%s | workspace_id=%s | %s", user_id, workspace_id, e)
+        return jsonify({'error': str(e)}), 400
+
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        tb = traceback.format_exc()
+        logger.error(
+            "[Upload] UNHANDLED EXCEPTION\n"
+            "  endpoint   : POST /upload\n"
+            "  user_id    : %s\n"
+            "  workspace_id: %s\n"
+            "  filename   : %s\n"
+            "  type       : %s\n"
+            "  msg        : %s\n"
+            "  traceback  :\n%s",
+            user_id, workspace_id, file.filename if file else 'unknown',
+            type(e).__name__, e, tb
+        )
+        return jsonify({
+            'error': f'{type(e).__name__}: {e}',
+            'stage': 'processing'
+        }), 500
 
 
 # ── Download ─────────────────────────────────────────────────────────────────
