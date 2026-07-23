@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis, AreaChart, Area, Legend,
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
 } from 'recharts';
-import { ArrowLeft, Download, TrendingUp, Zap, Users, Target, MessageSquare, BarChart2, FileText, Sparkles } from 'lucide-react';
+import { ArrowLeft, Download, TrendingUp, Zap, Users, Target, MessageSquare, BarChart2, FileText, Sparkles, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppBackground } from '../components/ui/AppBackground';
 import { DataChat } from '../components/DataChat';
@@ -63,7 +63,7 @@ const TAB_ITEMS: { id: Tab; label: string; icon: React.ElementType }[] = [
 const Visualization = () => {
   const { dataset_id } = useParams<{ dataset_id: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-
+  const [, setShowDeleteModal] = useState(false);
   // ── Strategy Agent state ──────────────────────────────────────────────────
   const [strategies, setStrategies] = useState<Record<number, Strategy>>({});
   const [loadingSegments, setLoadingSegments] = useState<Set<number>>(new Set());

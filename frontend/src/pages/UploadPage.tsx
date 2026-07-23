@@ -19,6 +19,7 @@ import { fetchWithAuth } from '../utils/api';
 import { LogoutButton } from '../components/LogoutButton';
 
 const UploadPage = () => {
+  const fileInputId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
