@@ -25,23 +25,10 @@ RFM_SCALER_PATH = os.path.join(MODEL_DIR, "rfm_scaler.joblib")
 RFM_MAP_PATH = os.path.join(MODEL_DIR, "rfm_segment_map.json")
 # ------------------------------------------
 
-def load_rfm_model():
-    if not os.path.exists(RFM_MODEL_PATH):
-        raise FileNotFoundError(f"Missing model: {RFM_MODEL_PATH}")
-    model = joblib.load(RFM_MODEL_PATH)
-    print("[OK] RFM model loaded")
-    return model
+# The legacy pre-trained models (rfm_kmeans_model.joblib, rfm_scaler.joblib) 
+# have been removed because they are not used by auto_cluster_rfm and 
+# loading them with newer scikit-learn/numpy versions causes a SIGSEGV (code 139) in Gunicorn.
 
-def load_rfm_scaler():
-    if not os.path.exists(RFM_SCALER_PATH):
-        raise FileNotFoundError(f"Missing scaler: {RFM_SCALER_PATH}")
-    scaler = joblib.load(RFM_SCALER_PATH)
-    print("[OK] RFM scaler loaded")
-    return scaler
-
-# We initialize these right here so any module importing this fails fast
-rfm_model = load_rfm_model()
-rfm_scaler = load_rfm_scaler()
 
 try:
     with open(RFM_MAP_PATH, 'r') as f:
@@ -99,7 +86,9 @@ def auto_cluster_rfm(
     """
     n_customers = len(rfm_df)
     scaler = StandardScaler()
+    print("[ML_DEBUG] Entering scaler.fit_transform")
     X = scaler.fit_transform(rfm_df[feature_cols])
+    print("[ML_DEBUG] Completed scaler.fit_transform")
 
     if n_customers == 0:
         raise ValueError("No customers available for clustering.")
@@ -121,12 +110,17 @@ def auto_cluster_rfm(
     if len(candidate_ks) == 1:
         only_k = candidate_ks[0]
         model = KMeans(n_clusters=only_k, random_state=random_state, n_init=10)
+        print("[ML_DEBUG] Entering kmeans.fit_predict (single candidate)")
         labels = model.fit_predict(X)
+        print("[ML_DEBUG] Completed kmeans.fit_predict (single candidate)")
         sil = None
         if len(set(labels)) > 1 and len(set(labels)) < len(labels):
             try:
+                print("[ML_DEBUG] Entering silhouette_score (single candidate)")
                 sil = float(silhouette_score(X, labels))
-            except Exception:
+                print("[ML_DEBUG] Completed silhouette_score (single candidate)")
+            except Exception as e:
+                print(f"[ML_DEBUG] Exception in silhouette_score: {e}")
                 sil = None
         return labels, scaler, model, {
             "selected_k": only_k,
@@ -145,15 +139,20 @@ def auto_cluster_rfm(
 
     for k in candidate_ks:
         model = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+        print(f"[ML_DEBUG] Entering kmeans.fit_predict for k={k}")
         labels = model.fit_predict(X)
+        print(f"[ML_DEBUG] Completed kmeans.fit_predict for k={k}")
         inertia = float(model.inertia_)
         inertia_by_k[k] = inertia
 
         sil = None
         if len(set(labels)) > 1 and len(set(labels)) < len(labels):
             try:
+                print(f"[ML_DEBUG] Entering silhouette_score for k={k}")
                 sil = float(silhouette_score(X, labels))
-            except Exception:
+                print(f"[ML_DEBUG] Completed silhouette_score for k={k}")
+            except Exception as e:
+                print(f"[ML_DEBUG] Exception in silhouette_score for k={k}: {e}")
                 sil = None
 
         candidate_runs.append({"k": k, "inertia": inertia, "silhouette": sil})
@@ -171,7 +170,9 @@ def auto_cluster_rfm(
         selection_method = "elbow_fallback"
         fallback_k = elbow_k if elbow_k is not None else candidate_ks[0]
         best_model = KMeans(n_clusters=fallback_k, random_state=random_state, n_init=10)
+        print(f"[ML_DEBUG] Entering kmeans.fit_predict (fallback) for k={fallback_k}")
         best_labels = best_model.fit_predict(X)
+        print(f"[ML_DEBUG] Completed kmeans.fit_predict (fallback) for k={fallback_k}")
         best_k = fallback_k
 
     return best_labels, scaler, best_model, {

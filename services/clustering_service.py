@@ -120,6 +120,7 @@ def run_clustering(
 
     # ── Step 3: Auto-select k and Cluster ─────────────────────────────────────
     rfm_features = ["Recency", "Frequency", "Monetary"]
+    logger.info("[ML_DEBUG] Entering auto_cluster_rfm")
     labels, active_scaler, active_model, clustering_diag = auto_cluster_rfm(
         rfm_df=rfm,
         feature_cols=rfm_features,
@@ -127,6 +128,7 @@ def run_clustering(
         max_k=10,
         random_state=42,
     )
+    logger.info("[ML_DEBUG] Completed auto_cluster_rfm")
     rfm["Cluster"] = labels
     selected_k = int(clustering_diag.get("selected_k", max(1, rfm["Cluster"].nunique())))
     
@@ -159,9 +161,15 @@ def run_clustering(
     if sil_score is None and len(rfm) > 1 and rfm["Cluster"].nunique() > 1:
         try:
             from sklearn.metrics import silhouette_score as sk_silhouette
+            logger.info("[ML_DEBUG] Entering active_scaler.transform (silhouette step)")
             rfm_scaled = active_scaler.transform(rfm[rfm_features])
+            logger.info("[ML_DEBUG] Completed active_scaler.transform (silhouette step)")
+            
+            logger.info("[ML_DEBUG] Entering sk_silhouette (silhouette step)")
             sil_score = float(sk_silhouette(rfm_scaled, rfm["Cluster"]))
-        except Exception:
+            logger.info("[ML_DEBUG] Completed sk_silhouette (silhouette step)")
+        except Exception as e:
+            logger.warning(f"[ML_DEBUG] Exception in silhouette score calculation: {e}")
             pass
 
     # ── Step 7: Persist to DB ─────────────────────────────────────────────────
