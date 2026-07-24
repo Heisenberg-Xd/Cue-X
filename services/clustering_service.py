@@ -108,6 +108,7 @@ def run_clustering(
         raise ValueError(f"No valid rows after cleaning (had {original_len} rows before).")
 
     # ── Step 2: RFM Aggregation ───────────────────────────────────────────────
+    print("STEP 5: built RFM (starting)", flush=True)
     agg_dict = {
         "Recency":   ("transaction_date", lambda x: (today - x.max()).days),
         "Frequency": ("transaction_date", "count"),
@@ -117,6 +118,7 @@ def run_clustering(
         agg_dict["season"] = ("season", lambda x: x.mode()[0] if not x.mode().empty else "Unknown")
 
     rfm = df.groupby("customer_id").agg(**agg_dict).reset_index()
+    print("STEP 5: built RFM (completed)", flush=True)
 
     # ── Step 3: Auto-select k and Cluster ─────────────────────────────────────
     rfm_features = ["Recency", "Frequency", "Monetary"]
@@ -157,22 +159,27 @@ def run_clustering(
     rfm["RFM_Score"] = rfm["R_Score"].astype(str) + rfm["F_Score"].astype(str) + rfm["M_Score"].astype(str)
 
     # ── Step 6: Silhouette score ──────────────────────────────────────────────
+    print("STEP 11: entering silhouette_score step", flush=True)
     sil_score = clustering_diag.get("silhouette_score")
     if sil_score is None and len(rfm) > 1 and rfm["Cluster"].nunique() > 1:
         try:
             from sklearn.metrics import silhouette_score as sk_silhouette
             logger.info("[ML_DEBUG] Entering active_scaler.transform (silhouette step)")
+            print("STEP 11.1: silhouette active_scaler.transform", flush=True)
             rfm_scaled = active_scaler.transform(rfm[rfm_features])
             logger.info("[ML_DEBUG] Completed active_scaler.transform (silhouette step)")
             
             logger.info("[ML_DEBUG] Entering sk_silhouette (silhouette step)")
+            print("STEP 11.2: silhouette sk_silhouette", flush=True)
             sil_score = float(sk_silhouette(rfm_scaled, rfm["Cluster"]))
             logger.info("[ML_DEBUG] Completed sk_silhouette (silhouette step)")
         except Exception as e:
             logger.warning(f"[ML_DEBUG] Exception in silhouette score calculation: {e}")
             pass
+    print("STEP 11: completed silhouette_score step", flush=True)
 
     # ── Step 7: Persist to DB ─────────────────────────────────────────────────
+    print("STEP 12: database insert (starting)", flush=True)
     dataset_id = None
     optimizer_status = "disabled"
     should_queue_optimizer = False
@@ -209,14 +216,17 @@ def run_clustering(
                         should_queue_optimizer = True
     except Exception as db_err:
         logger.warning(f"[Clustering] DB persistence error: {db_err}")
+    print("STEP 12: database insert (completed)", flush=True)
 
     # Queue optimizer job if needed
+    print("STEP 13: optimizer queue (starting)", flush=True)
     if should_queue_optimizer and dataset_id:
         try:
             from routes.upload import _queue_optimizer_job
             _queue_optimizer_job(dataset_id)
         except Exception as opt_err:
             logger.warning(f"[Clustering] Could not queue optimizer: {opt_err}")
+    print("STEP 13: optimizer queue (completed)", flush=True)
 
     return {
         "dataset_id":      dataset_id,

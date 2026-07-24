@@ -85,9 +85,12 @@ def auto_cluster_rfm(
     supporting signal. Returns labels, fitted scaler, fitted model, diagnostics.
     """
     n_customers = len(rfm_df)
+    print("STEP 6: StandardScaler()", flush=True)
     scaler = StandardScaler()
     print("[ML_DEBUG] Entering scaler.fit_transform")
+    print("STEP 7: fit_transform() (starting)", flush=True)
     X = scaler.fit_transform(rfm_df[feature_cols])
+    print("STEP 8: completed fit_transform()", flush=True)
     print("[ML_DEBUG] Completed scaler.fit_transform")
 
     if n_customers == 0:
@@ -109,9 +112,12 @@ def auto_cluster_rfm(
     # If there is only one feasible k, run directly.
     if len(candidate_ks) == 1:
         only_k = candidate_ks[0]
+        print("STEP 9: KMeans()", flush=True)
         model = KMeans(n_clusters=only_k, random_state=random_state, n_init=10)
         print("[ML_DEBUG] Entering kmeans.fit_predict (single candidate)")
+        print("STEP 10: fit_predict() (starting)", flush=True)
         labels = model.fit_predict(X)
+        print("STEP 10: completed fit_predict()", flush=True)
         print("[ML_DEBUG] Completed kmeans.fit_predict (single candidate)")
         sil = None
         if len(set(labels)) > 1 and len(set(labels)) < len(labels):
@@ -138,9 +144,12 @@ def auto_cluster_rfm(
     best_k: int | None = None
 
     for k in candidate_ks:
+        print("STEP 9: KMeans()", flush=True)
         model = KMeans(n_clusters=k, random_state=random_state, n_init=10)
         print(f"[ML_DEBUG] Entering kmeans.fit_predict for k={k}")
+        print("STEP 10: fit_predict() (starting)", flush=True)
         labels = model.fit_predict(X)
+        print("STEP 10: completed fit_predict()", flush=True)
         print(f"[ML_DEBUG] Completed kmeans.fit_predict for k={k}")
         inertia = float(model.inertia_)
         inertia_by_k[k] = inertia
@@ -169,9 +178,12 @@ def auto_cluster_rfm(
     if best_model is None:
         selection_method = "elbow_fallback"
         fallback_k = elbow_k if elbow_k is not None else candidate_ks[0]
+        print("STEP 9: KMeans() fallback", flush=True)
         best_model = KMeans(n_clusters=fallback_k, random_state=random_state, n_init=10)
         print(f"[ML_DEBUG] Entering kmeans.fit_predict (fallback) for k={fallback_k}")
+        print("STEP 10: fit_predict() fallback (starting)", flush=True)
         best_labels = best_model.fit_predict(X)
+        print("STEP 10: completed fit_predict() fallback", flush=True)
         print(f"[ML_DEBUG] Completed kmeans.fit_predict (fallback) for k={fallback_k}")
         best_k = fallback_k
 

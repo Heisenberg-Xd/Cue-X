@@ -1,6 +1,10 @@
 # Render Start Command:
 # gunicorn "app:create_app()" --workers 1 --threads 4 --bind 0.0.0.0:$PORT
 
+import faulthandler
+faulthandler.enable()
+print("[BOOT] faulthandler enabled", flush=True)
+
 print("[BOOT] Loading ML models...")
 
 from flask import Flask

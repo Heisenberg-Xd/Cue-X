@@ -489,9 +489,13 @@ def upload_file(user_id):
     file.save(filepath)
 
     try:
+        print("STEP 1: entered upload", flush=True)
         # ── Load and map columns ──────────────────────────────────────────────
+        print("STEP 1.1: before pd.read_csv", flush=True)
         raw = pd.read_csv(filepath)
+        print("STEP 1.2: after pd.read_csv", flush=True)
         raw, column_mapping = map_sales_columns(raw)
+        print("STEP 2: dataframe loaded and mapped", flush=True)
 
         # Basic validation feedback
         invalid_counts = {
@@ -514,6 +518,7 @@ def upload_file(user_id):
         source_id = None
         try:
             from models import insert_data_source
+            print("STEP 2.1: before data_source insert", flush=True)
             with get_connection() as conn:
                 if conn is not None:
                     source_id = insert_data_source(
@@ -523,14 +528,18 @@ def upload_file(user_id):
                         config={"original_filename": file.filename},
                         auto_sync_enabled=False,
                     )
+            print("STEP 2.2: after data_source insert", flush=True)
         except Exception as src_err:
             logger.warning(f"[Upload] Could not create data_source entry: {src_err}")
 
         # ── Save output CSV for backward-compat download ───────────────────────
         session_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
+        print("STEP 3: dataframe validated", flush=True)
         # ── Run clustering pipeline ───────────────────────────────────────────
+        print("STEP 3.1: before import run_clustering", flush=True)
         from services.clustering_service import run_clustering
+        print("STEP 4: entered run_clustering", flush=True)
         result = run_clustering(
             df=raw,
             workspace_id=int(workspace_id),
@@ -538,6 +547,7 @@ def upload_file(user_id):
             source_id=source_id,
             ingestion_type="manual",
         )
+        print("STEP 14: returned from run_clustering", flush=True)
 
         # Save output CSV for /download endpoint (backward compat)
         output_path  = os.path.join(UPLOAD_FOLDER, 'output.csv')
