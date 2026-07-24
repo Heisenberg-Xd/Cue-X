@@ -1,6 +1,18 @@
 # Render Start Command:
 # gunicorn "app:create_app()" --workers 1 --threads 4 --bind 0.0.0.0:$PORT
 
+import os
+# [CRITICAL SIGSEGV FIX]
+# Restrict native thread pools (OpenMP, OpenBLAS, MKL) to 1 thread.
+# When Gunicorn runs with --threads 4, scikit-learn's native C-extensions
+# will spawn (n_cores) threads per request. This causes thread-pool corruption
+# and an immediate Segmentation Fault (code 139).
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import faulthandler
 faulthandler.enable()
 print("[BOOT] faulthandler enabled", flush=True)
