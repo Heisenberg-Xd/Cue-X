@@ -46,7 +46,8 @@ def segment_counts(user_id, dataset_id):
 
     df, err = get_customers_df(dataset_id, user_id)
     if err:
-        return jsonify({'error': err}), 404
+        status_code = 500 if "failed" in err.lower() else 404
+        return jsonify({'error': err}), status_code
     try:
         counts = df['segment_label'].value_counts().to_dict()
         res = {'labels': list(counts.keys()), 'values': list(counts.values())}
