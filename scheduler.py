@@ -33,11 +33,15 @@ def sync_all_active_sources(app=None):
 
     logger.info("[Scheduler] Starting auto-sync job...")
 
-    with get_connection() as conn:
-        if conn is None:
-            logger.warning("[Scheduler] DB unavailable, skipping sync.")
-            return
-        sources = get_active_auto_sync_sources(conn)
+    try:
+        with get_connection() as conn:
+            if conn is None:
+                logger.warning("[Scheduler] DB unavailable, skipping sync.")
+                return
+            sources = get_active_auto_sync_sources(conn)
+    except Exception as err:
+        logger.error(f"[Scheduler] Failed to fetch active sources: {err}")
+        return
 
     logger.info(f"[Scheduler] Found {len(sources)} source(s) to sync.")
 
