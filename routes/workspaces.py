@@ -30,8 +30,8 @@ def create_workspace(user_id):
         data = request.get_json(silent=True) or {}
         print("POST /api/workspaces", data)
         name = (data.get("name") or "").strip()
-        if not name:
-            return jsonify({"error": "Name is required"}), 400
+        if not name or len(name) > 100:
+            return jsonify({"error": "Valid workspace name under 100 characters is required"}), 400
 
         with get_connection() as conn:
             if conn is None:
