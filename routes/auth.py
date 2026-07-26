@@ -38,8 +38,8 @@ def signup():
         email    = (data.get("email") or "").strip().lower()
         password = data.get("password") or ""
 
-        if not email or not password:
-            return jsonify({'error': 'Email and password are required'}), 400
+        if not email or not password or len(email) > 255:
+            return jsonify({'error': 'Valid email and password are required'}), 400
 
         hashed_password = generate_password_hash(password)
 
