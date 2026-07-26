@@ -60,6 +60,9 @@ def _try_connect(attempt: int) -> bool:
     """Attempt one connection test. Returns True on success."""
     global engine
     try:
+        if not DATABASE_URL or not isinstance(DATABASE_URL, str):
+            logger.error("[DB] Invalid or empty DATABASE_URL provided.")
+            return False
         logger.info(f"[DB] Connection attempt {attempt}/{_MAX_RETRIES} …")
         candidate = _build_engine(DATABASE_URL)
 
