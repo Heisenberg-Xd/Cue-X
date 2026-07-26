@@ -49,7 +49,7 @@ def _pick_elbow_k(inertia_by_k: dict[int, float]) -> int | None:
     Approximate elbow point using max distance from line between
     the first and last inertia points.
     """
-    if len(inertia_by_k) < 3:
+    if not inertia_by_k or len(inertia_by_k) < 3:
         return None
 
     sorted_items = sorted(inertia_by_k.items())
