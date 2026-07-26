@@ -32,7 +32,11 @@ class Settings:
     # ── Environment / Secrets ────────────────────────────────────────────────
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     BASE_URL       = os.getenv("BASE_URL")
-    PORT           = int(os.getenv("PORT", 10000))
+    # Safe integer parsing for PORT
+    try:
+        PORT = int(os.getenv("PORT", 10000))
+    except (ValueError, TypeError):
+        PORT = 10000
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "default-dev-secret-key")
     FRONTEND_URL   = os.getenv("FRONTEND_URL", "")
 
