@@ -32,7 +32,8 @@ def _build_archetype_segment_map(rfm_df: pd.DataFrame):
     when auto-selected k is not the same as the static map size.
     (Preserved from latest upload.py features)
     """
-    if rfm_df.empty or "Cluster" not in rfm_df.columns:
+    required_cols = {"Cluster", "Recency", "Frequency", "Monetary"}
+    if rfm_df.empty or not required_cols.issubset(rfm_df.columns):
         return {}
 
     cluster_profile = (
