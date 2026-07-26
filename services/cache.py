@@ -6,25 +6,27 @@ CACHE = {}
 
 def set_cache(key: str, value: any, ttl: int = 600):
     """Store an item in the cache with a Time-To-Live (in seconds)."""
-    CACHE[key] = {
+    key_str = str(key)
+    CACHE[key_str] = {
         "value": value,
         "expiry": time.time() + ttl
     }
-    print(f"[CACHE SET] {key}")
+    print(f"[CACHE SET] key='{key_str}' ttl={ttl}s")
 
 def get_cache(key: str) -> any:
     """Retrieve an item from the cache if it hasn't expired."""
-    data = CACHE.get(key)
+    key_str = str(key)
+    data = CACHE.get(key_str)
     if not data:
-        print(f"[CACHE MISS] {key}")
+        print(f"[CACHE MISS] key='{key_str}'")
         return None
     
     if time.time() > data["expiry"]:
-        print(f"[CACHE MISS] {key}")
-        del CACHE[key]
+        print(f"[CACHE EXPIRED] key='{key_str}'")
+        del CACHE[key_str]
         return None
         
-    print(f"[CACHE HIT] {key}")
+    print(f"[CACHE HIT] key='{key_str}'")
     return data["value"]
 
 def clear_cache(prefix: str = None):
