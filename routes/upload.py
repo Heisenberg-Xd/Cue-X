@@ -149,6 +149,8 @@ def _find_by_alias(columns, alias_set):
 
 
 def _infer_numeric_column(df: pd.DataFrame, name_hints: tuple[str, ...]):
+    if df is None or df.empty:
+        return None
     for col in df.columns:
         norm = _normalize_col_name(col)
         if not any(hint in norm for hint in name_hints):
